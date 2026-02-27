@@ -47,7 +47,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 type RowData = {
   id?: number;
-  device_id: string;
+  deviceId: string;
   timestamp: string | number;
   type: number;
   details: Record<string, any>;   // ← more flexible than fixed domain_activity
@@ -89,7 +89,7 @@ function findValue(
 }
 
 const columns: ColumnDef<RowData>[] = [
-  // your existing srNo, device_id, timestamp, type columns stay the same
+  // your existing srNo, deviceId, timestamp, type columns stay the same
 
   // ────────────────────────────────────────────────
   // Flexible columns that search across details sub-objects
@@ -102,38 +102,38 @@ const columns: ColumnDef<RowData>[] = [
       enableSorting: false,
       enableHiding: false,
   },
-    {
-      accessorKey: "device_id",
-      header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Device ID <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-    },
-    {
-      accessorKey: "timestamp",
-      header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Timestamp <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => {
-        const ts = row.getValue("timestamp") as string | number;
-        const timestampNum = typeof ts === "string" ? Number(ts) : ts;
-        const date = new Date(timestampNum * 1000);
-        return <div>{isNaN(date.getTime()) ? "—" : date.toLocaleString()}</div>;
-      },
-    },
-    {
-        accessorKey: "type",
-        id: "Type",
-        header: "Type",
-        filterFn: (row, id, filterValue) => {
-          if (filterValue === undefined || filterValue === "all") return true;
-          const value = row.getValue(id) as number;
-          return String(value) === filterValue;
-        },
-    },
+    {
+      accessorKey: "deviceId",
+        header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Device ID <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+    },
+    {
+      accessorKey: "timestamp",
+        header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Timestamp <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+        ),
+        cell: ({ row }) => {
+        const ts = row.getValue("timestamp") as string | number;
+        const timestampNum = typeof ts === "string" ? Number(ts) : ts;
+        const date = new Date(timestampNum * 1000);
+        return <div>{isNaN(date.getTime()) ? "—" : date.toLocaleString()}</div>;
+      },
+    },
+    {
+        accessorKey: "type",
+        id: "Type",
+        header: "Type",
+        filterFn: (row, id, filterValue) => {
+          if (filterValue === undefined || filterValue === "all") return true;
+          const value = row.getValue(id) as number;
+          return String(value) === filterValue;
+        },
+    },
   {
     id: "sourceIP",
     header: "Source IP",
@@ -390,8 +390,8 @@ export default function DashboardPage() {
               {/* Global search / Device ID filter */}
               <Input
                 placeholder="Filter by Device ID..."
-                value={(table.getColumn("device_id")?.getFilterValue() as string) ?? ""}
-                onChange={(e) => table.getColumn("device_id")?.setFilterValue(e.target.value)}
+                value={(table.getColumn("deviceId")?.getFilterValue() as string) ?? ""}
+                onChange={(e) => table.getColumn("deviceId")?.setFilterValue(e.target.value)}
                 className="max-w-sm"
               />
 
