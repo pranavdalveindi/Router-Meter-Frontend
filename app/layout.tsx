@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"   // ← corrected names
+import { Geist, Geist_Mono, Google_Sans_Flex, Poppins } from "next/font/google"   // ← corrected names
 import "./globals.css"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
@@ -12,6 +12,12 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+})
+
+const googleSans = Poppins({
+  variable: "--font-google-flex",
+  subsets: ["latin"],
+  weight: ["100","200","300","400","500","600","700","800","900"],
 })
 
 export const metadata: Metadata = {
@@ -27,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${googleSans.variable} antialiased`}
         suppressHydrationWarning  // ← add this too
         data-new-gr-c-s-check-loaded="14.1269.0"  // match the version in your error
         data-gr-ext-installed=""

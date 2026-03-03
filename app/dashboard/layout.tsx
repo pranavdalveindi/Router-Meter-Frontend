@@ -1,54 +1,59 @@
-import { AppSidebar } from "@/components/app-sidebar"
-import { Separator } from "@/components/ui/separator"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import ModeToggle from "@/components/comp-184"          // ← default import, adjust path if needed
+"use client";
 
-export default function MainLayout({
-  children,
-}: Readonly<{
+import React, { useState } from 'react';
+import { Sidebar } from '@/components/Sidebar';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface DashboardLayoutProps {
   children: React.ReactNode;
-}>) {
-  return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          {/* Left side: trigger + separator + breadcrumb */}
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
-            {/* <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    Building Your Application
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb> */}
-          </div>
+}
 
-          {/* Right side: your Mode component */}
-          <div className="flex items-center gap-4 px-4 mr-15">
-            <ModeToggle />                    {/* ← use it here */}
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        setIsOpen={setIsSidebarOpen} 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+      />
+
+      <main className="flex-1 overflow-y-auto relative">
+        <header className="sticky top-0 z-10 bg-brand-bg/80 backdrop-blur-md border-b border-brand-border px-8 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Network Activity</h1>
+            <p className="text-brand-muted text-sm mt-1">Real-time monitoring of connected devices and traffic.</p>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm",
+                  autoRefresh 
+                    ? "bg-brand-accent text-white shadow-brand-accent/20" 
+                    : "bg-brand-card border border-brand-border text-brand-muted hover:text-brand-text"
+                )}
+              >
+                <RefreshCw className={cn("h-4 w-4", autoRefresh && "animate-spin")} />
+                Refresh: {autoRefresh ? "On" : "Off"}
+              </button>
+            </div>
+            <ThemeToggle />
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="px-8 pb-12 mt-8">
           {children}
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </main>
+    </div>
+  );
 }
