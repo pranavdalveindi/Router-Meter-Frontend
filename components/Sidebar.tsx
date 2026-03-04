@@ -8,6 +8,7 @@ import {
   Smartphone,
   PanelLeftClose,
   PanelLeftOpen,
+  Clock,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+    { name: 'Sessions', icon: Clock, href: '/dashboard/sessions' },
     // { name: 'Domain Activity', icon: Globe, href: '/dashboard/domainActivity' },
     // { name: 'Device Details', icon: Smartphone, href: '/dashboard/deviceDetails' },
     // { name: 'Security Logs', icon: ShieldCheck, href: '#' },
