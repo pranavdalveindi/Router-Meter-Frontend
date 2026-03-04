@@ -1,54 +1,92 @@
-import { AppSidebar } from "@/components/app-sidebar"
-import { Separator } from "@/components/ui/separator"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import ModeToggle from "@/components/comp-184"          // ← default import, adjust path if needed
+"use client";
 
-export default function MainLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+import React, { useState } from 'react';
+import { Sidebar } from '@/components/Sidebar';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { DashboardProvider, useDashboard } from '@/components/DashboardProvider';
+
+function DashboardHeader() {
+  const { autoRefresh, setAutoRefresh, refreshNow, title, subtitle } = useDashboard();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    refreshNow();
+    // Simulate a brief loading state for UX
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          {/* Left side: trigger + separator + breadcrumb */}
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
-            {/* <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    Building Your Application
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb> */}
-          </div>
+    <header className="sticky top-0 z-10 bg-brand-bg/80 backdrop-blur-md border-b border-brand-border px-8 py-6 flex items-center justify-between">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <p className="text-brand-muted text-sm mt-1">{subtitle}</p>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 bg-brand-card border border-brand-border p-1 rounded-2xl shadow-sm">
+          <button 
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-brand-text hover:bg-brand-bg transition-all disabled:opacity-50"
+            title="Refresh Data Now"
+          >
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            Refresh
+          </button>
+          
+          <div className="w-px h-4 bg-brand-border mx-1" />
 
-          {/* Right side: your Mode component */}
-          <div className="flex items-center gap-4 px-4 mr-15">
-            <ModeToggle />                    {/* ← use it here */}
-          </div>
-        </header>
+          <button 
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+              autoRefresh 
+                ? "bg-brand-accent/10 text-brand-accent" 
+                : "text-brand-muted hover:text-brand-text"
+            )}
+          >
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              autoRefresh ? "bg-brand-accent animate-pulse" : "bg-brand-muted"
+            )} />
+            Auto-Refresh: {autoRefresh ? "On" : "Off"}
+          </button>
+        </div>
+        <ThemeToggle />
+      </div>
+    </header>
+  );
+}
 
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-brand-bg text-brand-text">
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        setIsOpen={setIsSidebarOpen} 
+      />
+
+      <main className="flex-1 overflow-y-auto relative">
+        <DashboardHeader />
+        <div className="px-8 pb-12 mt-8">
           {children}
         </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+      </main>
+    </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <DashboardProvider>
+      <DashboardLayoutContent>
+        {children}
+      </DashboardLayoutContent>
+    </DashboardProvider>
+  );
 }
