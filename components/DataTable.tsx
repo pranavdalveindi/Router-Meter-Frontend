@@ -84,7 +84,7 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "sourceIP",
     header: "Source IP",
-    accessorFn: (row) => findValue(row.details, ["source_ip_v4", "ip", "ip_v4"]) ?? "—",
+    accessorFn: (row) => findValue(row.details, ["source_ip_v4", "ip", "ip_v4", "source_ip"]) ?? "—",
     cell: ({ getValue }) => <span className="font-mono text-brand-muted">{getValue() as string}</span>
   },
   {
