@@ -24,6 +24,7 @@ export default function SessionsPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+
       const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData = await response.json();
