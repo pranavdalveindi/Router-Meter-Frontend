@@ -29,10 +29,6 @@ export default function LoginPage() {
             className="w-full max-w-sm"
           >
             <LoginForm />
-            
-            <p className="mt-8 text-center text-sm text-brand-muted">
-              Don't have an account? <Link href="#" className="text-brand-accent hover:underline">Sign up</Link>
-            </p>
           </motion.div>
         </div>
 
