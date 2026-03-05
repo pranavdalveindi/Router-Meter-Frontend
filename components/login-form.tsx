@@ -154,21 +154,6 @@ export function LoginForm() {
       </FieldGroup>
 
       <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-brand-border"></div>
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-brand-bg px-4 text-brand-muted font-medium tracking-wider">Or continue with</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <Button variant="outline" className="h-12 rounded-xl border-brand-border hover:bg-brand-card transition-colors">
-          Google
-        </Button>
-        <Button variant="outline" className="h-12 rounded-xl border-brand-border hover:bg-brand-card transition-colors">
-          GitHub
-        </Button>
       </div>
     </form>
   );

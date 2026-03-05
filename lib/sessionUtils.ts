@@ -29,7 +29,7 @@ export function groupEventsIntoSessions(
   const activeSessions = new Map<string, Session>();
 
   sortedEvents.forEach((event) => {
-    const meterId = event.meterId || "Unknown Router";
+    const meterId = event.meterId || event.deviceId || "Unknown Router";
     const hostname = findValue(event.details, "hostname") || findValue(event.details, "device_name") || "Unknown Device";
     const ip = findValue(event.details, "ip") || "Unknown IP";
     const mac = findValue(event.details, "mac") || "Unknown MAC";

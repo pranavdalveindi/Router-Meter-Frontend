@@ -377,7 +377,7 @@ export const DataTable = ({ data }: DataTableProps) => {
             ) : (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-12 text-center text-brand-muted">
-                  No records found.
+                  Loading Data...
                 </td>
               </tr>
             )}
