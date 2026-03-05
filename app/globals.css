@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-card: var(--brand-card);
+  --color-brand-border: var(--brand-border);
+  --color-brand-accent: #0ea5e9;
+  --color-brand-text: var(--brand-text);
+  --color-brand-muted: var(--brand-muted);
+}
+
+:root {
+  --brand-bg: #f8fafc;
+  --brand-card: #ffffff;
+  --brand-border: #e2e8f0;
+  --brand-text: #0f172a;
+  --brand-muted: #64748b;
+}
+
+.dark {
+  --brand-bg: #05070a;
+  --brand-card: #0c1017;
+  --brand-border: #1e293b;
+  --brand-text: #f8fafc;
+  --brand-muted: #94a3b8;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-text font-sans antialiased transition-colors duration-300;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-brand-border rounded-full hover:bg-brand-muted/50 transition-colors;
+}
