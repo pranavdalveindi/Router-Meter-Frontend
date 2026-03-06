@@ -1,74 +1,75 @@
 name: Deploy Frontend
 
 on:
-push:
-branches: [main]
+  push:
+    branches:
+      - main
 
 jobs:
-deploy:
-runs-on: ubuntu-latest
+  deploy:
+    runs-on: ubuntu-latest
 
-steps:
-  # 1️⃣ Checkout repository
-  - name: Checkout Code
-    uses: actions/checkout@v4
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-  # 2️⃣ Setup SSH connection (Bastion → Private EC2)
-  - name: Setup SSH
-    run: |
-      mkdir -p ~/.ssh
+      # 2️⃣ Setup SSH connection (Bastion → Private EC2)
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
 
-      echo "${{ secrets.JUMP_DEV_KEY }}" > ~/.ssh/bastion.pem
-      echo "${{ secrets.EC2_DEV_KEY }}" > ~/.ssh/private.pem
+          echo "${{ secrets.JUMP_DEV_KEY }}" > ~/.ssh/bastion.pem
+          echo "${{ secrets.EC2_DEV_KEY }}" > ~/.ssh/private.pem
 
-      chmod 600 ~/.ssh/bastion.pem
-      chmod 600 ~/.ssh/private.pem
+          chmod 600 ~/.ssh/bastion.pem
+          chmod 600 ~/.ssh/private.pem
 
-      cat >> ~/.ssh/config << EOF
-      Host bastion
-        HostName ${{ secrets.JUMP_DEV_IP }}
-        User ${{ secrets.EC2_USER_DEV }}
-        IdentityFile ~/.ssh/bastion.pem
-        StrictHostKeyChecking no
+          cat >> ~/.ssh/config << EOF
+          Host bastion
+            HostName ${{ secrets.JUMP_DEV_IP }}
+            User ${{ secrets.EC2_USER_DEV }}
+            IdentityFile ~/.ssh/bastion.pem
+            StrictHostKeyChecking no
 
-      Host private
-        HostName ${{ secrets.EC2_DEV_PRIVATE_IP }}
-        User ${{ secrets.EC2_USER_DEV }}
-        IdentityFile ~/.ssh/private.pem
-        ProxyJump bastion
-        StrictHostKeyChecking no
-      EOF
+          Host private
+            HostName ${{ secrets.EC2_DEV_PRIVATE_IP }}
+            User ${{ secrets.EC2_USER_DEV }}
+            IdentityFile ~/.ssh/private.pem
+            ProxyJump bastion
+            StrictHostKeyChecking no
+          EOF
 
-      ssh-keyscan -H ${{ secrets.JUMP_DEV_IP }} >> ~/.ssh/known_hosts || true
+          ssh-keyscan -H ${{ secrets.JUMP_DEV_IP }} >> ~/.ssh/known_hosts || true
 
-  # 3️⃣ Deploy frontend on EC2
-  - name: Deploy to EC2
-    run: |
-      ssh private << 'EOF'
+      # 3️⃣ Deploy frontend on EC2
+      - name: Deploy to EC2
+        run: |
+          ssh private << 'EOF'
 
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-        # Ensure Node 20
-        nvm install 20
-        nvm use 20
+            # Ensure Node 20
+            nvm install 20
+            nvm use 20
 
-        cd /var/www/Router-Meter-Frontend || exit 1
+            cd /var/www/Router-Meter-Frontend || exit 1
 
-        echo "Pulling latest code..."
-        git fetch --all
-        git reset --hard origin/main
+            echo "Pulling latest code..."
+            git fetch --all
+            git reset --hard origin/main
 
-        echo "Installing dependencies..."
-        npm ci
+            echo "Installing dependencies..."
+            npm ci
 
-        echo "Building Next.js app..."
-        npm run build
+            echo "Building Next.js app..."
+            npm run build
 
-        echo "Restarting frontend..."
-        pm2 restart router-meter-frontend
+            echo "Restarting frontend..."
+            pm2 restart router-meter-frontend
 
-        echo "PM2 status:"
-        pm2 status
+            echo "PM2 status:"
+            pm2 status
 
-      EOF
+          EOF
