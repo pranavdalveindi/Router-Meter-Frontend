@@ -47,12 +47,13 @@ jobs:
         run: |
           ssh private << 'EOF'
 
+            echo "Loading NVM..."
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            source ~/.bashrc
 
-            # Ensure Node 20
-            nvm install 20
-            nvm use 20
+            echo "Using Node version:"
+            node -v
 
             cd /var/www/Router-Meter-Frontend || exit 1
 
@@ -66,8 +67,8 @@ jobs:
             echo "Building Next.js app..."
             npm run build
 
-            echo "Restarting frontend..."
-            pm2 restart router-meter-frontend
+            echo "Reloading frontend with PM2..."
+            pm2 reload router-meter-frontend || pm2 restart router-meter-frontend
 
             echo "PM2 status:"
             pm2 status
