@@ -8,7 +8,6 @@ jobs:
 deploy:
 runs-on: ubuntu-latest
 
-```
 steps:
   # 1️⃣ Checkout repository
   - name: Checkout Code
@@ -73,4 +72,3 @@ steps:
         pm2 status
 
       EOF
-```
