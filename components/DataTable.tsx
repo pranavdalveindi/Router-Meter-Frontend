@@ -44,6 +44,23 @@ const columns: ColumnDef<RowData>[] = [
     enableHiding: false,
   },
   {
+    id: "event",
+    header: "Status",
+    accessorFn: (row) => findValue(row.details, "event") ?? "—",
+    cell: ({ getValue }) => {
+      const val = getValue() as string;
+      return (
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            "w-2.5 h-2.5 rounded-full",
+            val === 'connected' || val === 'active' ? "bg-emerald-500" : "bg-rose-500"
+          )} />
+          <span className="capitalize"></span>
+        </div>
+      );
+    }
+  },
+  {
     accessorKey: "deviceId",
     header: ({ column }) => (
       <button 
@@ -52,6 +69,23 @@ const columns: ColumnDef<RowData>[] = [
       >
         Device ID <ArrowUpDown size={14} />
       </button>
+    ),
+  },
+  {
+    id: "hhid",
+    header: "HHID",
+    accessorFn: (row) => {
+      const mac = findValue(row.details, "mac") || findValue(row.details.device_details, "mac");
+      const ip = findValue(row.details, ["source_ip_v4", "ip", "source_ip"]) || findValue(row.details.domain_activity, "source_ip");
+    
+      return (
+        "—"
+      );
+    },
+    cell: ({ getValue }) => (
+      <span className="px-2 py-0.5 rounded bg-black-500/10 text-indigo-400 text-xs font-semibold">
+        {getValue() as string}
+      </span>
     ),
   },
   {
@@ -82,6 +116,29 @@ const columns: ColumnDef<RowData>[] = [
     },
   },
   {
+    id: "member",
+    header: "Member",
+    accessorFn: (row) => {
+      const mac = findValue(row.details, "mac") || findValue(row.details.device_details, "mac");
+      const ip = findValue(row.details, ["source_ip_v4", "ip", "source_ip"]) || findValue(row.details.domain_activity, "source_ip");
+    
+      return (
+        "—"
+      );
+    },
+    cell: ({ getValue }) => (
+      <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-xs font-semibold">
+        {getValue() as string}
+      </span>
+    ),
+  },
+  {
+    id: "mac",
+    header: "MAC",
+    accessorFn: (row) => findValue(row.details, "mac") ?? "—",
+    cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
+  },
+  {
     id: "sourceIP",
     header: "Source IP",
     accessorFn: (row) => findValue(row.details, ["source_ip_v4", "ip", "ip_v4", "source_ip"]) ?? "—",
@@ -102,34 +159,34 @@ const columns: ColumnDef<RowData>[] = [
     header: "Category",
     accessorFn: (row) => findValue(row.details, ["category", "service_category"]) ?? "—",
   },
-  {
-    id: "event",
-    header: "Event",
-    accessorFn: (row) => findValue(row.details, "event") ?? "—",
-    cell: ({ getValue }) => {
-      const val = getValue() as string;
-      return (
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            "w-1.5 h-1.5 rounded-full",
-            val === 'connected' || val === 'active' ? "bg-emerald-500" : "bg-rose-500"
-          )} />
-          <span className="capitalize">{val}</span>
-        </div>
-      );
-    }
-  },
+  // {
+  //   id: "event",
+  //   header: "Status",
+  //   accessorFn: (row) => findValue(row.details, "event") ?? "—",
+  //   cell: ({ getValue }) => {
+  //     const val = getValue() as string;
+  //     return (
+  //       <div className="flex items-center gap-2">
+  //         <div className={cn(
+  //           "w-1.5 h-1.5 rounded-full",
+  //           val === 'connected' || val === 'active' ? "bg-emerald-500" : "bg-rose-500"
+  //         )} />
+  //         <span className="capitalize"></span>
+  //       </div>
+  //     );
+  //   }
+  // },
   {
     id: "hostname",
     header: "Hostname",
     accessorFn: (row) => findValue(row.details, "hostname") ?? "—",
   },
-  {
-    id: "mac",
-    header: "MAC",
-    accessorFn: (row) => findValue(row.details, "mac") ?? "—",
-    cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
-  },
+  // {
+  //   id: "mac",
+  //   header: "MAC",
+  //   accessorFn: (row) => findValue(row.details, "mac") ?? "—",
+  //   cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
+  // },
   {
     id: "connected_duration",
     header: "Duration",

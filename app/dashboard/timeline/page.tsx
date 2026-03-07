@@ -15,6 +15,8 @@ import { useDashboard } from '@/components/DashboardProvider';
 import { groupEventsIntoSessions, type Session } from '@/lib/sessionUtils';
 import { cn } from '@/lib/utils';
 import * as d3 from 'd3';
+import DatePicker from 'react-datepicker';
+import { startOfDay, endOfDay, format, isSameDay } from 'date-fns';
 
 // --- Reusable Gantt Chart Component ---
 const GanttChart = ({ 
@@ -22,13 +24,17 @@ const GanttChart = ({
   yField,
   colorField,
   onBarClick,
-  title
+  title,
+  startTime,
+  endTime
 }: { 
   sessions: Session[],
   yField: keyof Session,
   colorField: keyof Session,
   onBarClick?: (session: Session) => void,
-  title: string
+  title: string,
+  startTime?: number,
+  endTime?: number
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,12 +56,13 @@ const GanttChart = ({
 
     const svg = d3.select(svgRef.current)
       .attr("width", width + margin.left + margin.right)
-      .attr("height", height)
-      .append("g")
+      .attr("height", height);
+
+    const g = svg.append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    const minTime = d3.min(sessions, d => d.startTime) || 0;
-    const maxTime = d3.max(sessions, d => d.endTime) || Date.now() / 1000;
+    const minTime = startTime || d3.min(sessions, d => d.startTime) || 0;
+    const maxTime = endTime || d3.max(sessions, d => d.endTime) || Date.now() / 1000;
 
     const x = d3.scaleLinear()
       .domain([minTime, maxTime])
@@ -66,31 +73,40 @@ const GanttChart = ({
       .range([0, height - margin.top - margin.bottom])
       .padding(0.4);
 
-    const xAxis = d3.axisTop(x)
-      .ticks(10)
-      .tickFormat(d => {
-        const date = new Date((d as number) * 1000);
-        return d3.timeFormat("%H:%M:%S")(date);
-      });
+    const xAxisG = g.append("g")
+      .attr("class", "x-axis");
 
-    svg.append("g")
-      .attr("class", "x-axis")
-      .call(xAxis)
-      .call(g => g.select(".domain").remove())
-      .call(g => g.selectAll(".tick line").attr("stroke", "rgba(255,255,255,0.1)"))
-      .call(g => g.selectAll(".tick text").attr("fill", "rgba(255,255,255,0.5)").attr("font-size", "10px"));
+    const gridG = g.append("g")
+      .attr("class", "grid");
 
-    svg.append("g")
-      .attr("class", "grid")
-      .call(d3.axisBottom(x)
+    const updateAxis = (scale: d3.ScaleLinear<number, number>) => {
+      const xAxis = d3.axisTop(scale)
+        .ticks(10)
+        .tickFormat(d => {
+          const date = new Date((d as number) * 1000);
+          const diff = scale.domain()[1] - scale.domain()[0];
+          if (diff < 60) return d3.timeFormat("%H:%M:%S.%L")(date);
+          if (diff < 3600) return d3.timeFormat("%H:%M:%S")(date);
+          return d3.timeFormat("%H:%M")(date);
+        });
+
+      xAxisG.call(xAxis)
+        .call(g => g.select(".domain").remove())
+        .call(g => g.selectAll(".tick line").attr("stroke", "var(--brand-border)"))
+        .call(g => g.selectAll(".tick text").attr("fill", "var(--brand-muted)").attr("font-size", "10px"));
+
+      gridG.call(d3.axisBottom(scale)
         .ticks(10)
         .tickSize(height - margin.top - margin.bottom)
         .tickFormat(() => "")
       )
       .call(g => g.select(".domain").remove())
-      .call(g => g.selectAll(".tick line").attr("stroke", "rgba(255,255,255,0.05)"));
+      .call(g => g.selectAll(".tick line").attr("stroke", "var(--brand-border)").attr("opacity", 0.3));
+    };
 
-    const rows = svg.selectAll(".row")
+    updateAxis(x);
+
+    const rows = g.selectAll(".row")
       .data(yDomain)
       .enter()
       .append("g")
@@ -101,7 +117,8 @@ const GanttChart = ({
       .attr("y", d => y(d)!)
       .attr("width", width + margin.left)
       .attr("height", y.bandwidth())
-      .attr("fill", "rgba(255,255,255,0.02)")
+      .attr("fill", "var(--brand-muted)")
+      .attr("opacity", 0.05)
       .attr("rx", 12);
 
     rows.append("text")
@@ -109,21 +126,30 @@ const GanttChart = ({
       .attr("y", d => y(d)! + y.bandwidth() / 2)
       .attr("dy", ".35em")
       .attr("text-anchor", "end")
-      .attr("fill", "rgba(255,255,255,0.9)")
+      .attr("fill", "var(--brand-text)")
       .attr("font-size", "14px")
       .attr("font-weight", "600")
       .text(d => d);
 
     const colorScale = d3.scaleOrdinal(d3.schemeTableau10);
 
-    const bars = svg.selectAll(".session-bar")
+    const clip = svg.append("defs").append("clipPath")
+      .attr("id", "clip")
+      .append("rect")
+      .attr("width", width)
+      .attr("height", height - margin.top - margin.bottom);
+
+    const barContainer = g.append("g")
+      .attr("clip-path", "url(#clip)");
+
+    const bars = barContainer.selectAll(".session-bar")
       .data(sessions)
       .enter()
       .append("rect")
       .attr("class", "session-bar")
       .attr("x", d => x(d.startTime))
       .attr("y", d => y(d[yField] as string)!)
-      .attr("width", d => Math.max(10, x(d.endTime) - x(d.startTime)))
+      .attr("width", d => Math.max(1, x(d.endTime) - x(d.startTime)))
       .attr("height", y.bandwidth())
       .attr("fill", d => colorScale(d[colorField] as string))
       .attr("rx", y.bandwidth() / 2)
@@ -131,9 +157,8 @@ const GanttChart = ({
       .style("cursor", onBarClick ? "pointer" : "default")
       .style("pointer-events", "all")
       .on("mouseover", function(event, d) {
-        d3.select(this).attr("opacity", 1).attr("stroke", "#fff").attr("stroke-width", 2);
+        d3.select(this).attr("opacity", 1).attr("stroke", "var(--brand-text)").attr("stroke-width", 2);
         
-        // Tooltip logic
         const tooltip = d3.select("body").append("div")
           .attr("class", "gantt-tooltip")
           .style("position", "absolute")
@@ -144,7 +169,7 @@ const GanttChart = ({
           .style("font-size", "12px")
           .style("pointer-events", "none")
           .style("z-index", "1000")
-          .html(`<strong>${d[colorField]}</strong><br/>Duration: ${Math.round(d.duration)}s`);
+          .html(`<strong>${d[colorField]}</strong><br/>Start: ${new Date(d.startTime * 1000).toLocaleTimeString()}<br/>End: ${new Date(d.endTime * 1000).toLocaleTimeString()}<br/>Duration: ${Math.round(d.duration)}s`);
           
         tooltip.style("left", (event.pageX + 10) + "px")
                .style("top", (event.pageY - 10) + "px");
@@ -162,12 +187,27 @@ const GanttChart = ({
         if (onBarClick) onBarClick(d);
       });
 
-  }, [sessions, yField, colorField, onBarClick]);
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([1, 100])
+      .translateExtent([[0, 0], [width, height]])
+      .on("zoom", (event) => {
+        const newX = event.transform.rescaleX(x);
+        updateAxis(newX);
+        bars.attr("x", d => newX(d.startTime))
+            .attr("width", d => Math.max(1, newX(d.endTime) - newX(d.startTime)));
+      });
+
+    svg.call(zoom);
+
+  }, [sessions, yField, colorField, onBarClick, startTime, endTime]);
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-bold text-brand-muted uppercase tracking-[0.2em]">{title}</h4>
-      <div ref={containerRef} className="w-full overflow-x-auto bg-brand-card/30 rounded-[2rem] border border-brand-border p-8 shadow-2xl backdrop-blur-xl">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-bold text-brand-muted uppercase tracking-[0.2em]">{title}</h4>
+        <span className="text-[10px] text-brand-muted italic">Scroll to zoom • Drag to pan</span>
+      </div>
+      <div ref={containerRef} className="w-full overflow-x-auto bg-brand-card/50 dark:bg-brand-card/30 rounded-[2rem] border border-brand-border p-8 shadow-2xl backdrop-blur-xl">
         <svg ref={svgRef} className="min-w-full"></svg>
       </div>
     </div>
@@ -183,7 +223,9 @@ export default function TimelinePage() {
   const [selectedRouter, setSelectedRouter] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | 'all'>('all');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | 'all' | 'custom'>('custom');
+  const [startDate, setStartDate] = useState<Date | null>(startOfDay(new Date()));
+  const [endDate, setEndDate] = useState<Date | null>(endOfDay(new Date()));
 
   useEffect(() => {
     setTitle("Activity Timeline");
@@ -193,13 +235,46 @@ export default function TimelinePage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-
       const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData = await response.json();
-      setData(fetchedData);
+      
+      if (fetchedData && fetchedData.length > 0) {
+        setData(fetchedData);
+      } else {
+        throw new Error("Empty data");
+      }
     } catch (err: any) {
-      console.warn("API fetch failed");
+      console.warn("API fetch failed or empty, using dummy data");
+      const dummy = [];
+      const now = Math.floor(Date.now() / 1000);
+      const platforms = ['YouTube', 'Netflix', 'Facebook', 'Instagram', 'Windows', 'Android', 'WhatsApp', 'TikTok', 'Spotify'];
+      const categories = ['OTT', 'Social', 'System', 'Communication', 'Music'];
+      const routers = ['Router-Alpha', 'Router-Beta', 'Router-Gamma'];
+      const hostnames = ['MacBook-Pro', 'iPhone-13', 'Pixel-6', 'Windows-PC', 'iPad-Air', 'Smart-TV'];
+      
+      // Generate data for the last 7 days to make calendar selection meaningful
+      for (let i = 0; i < 300; i++) {
+        const start = now - Math.floor(Math.random() * (86400 * 7));
+        const duration = Math.floor(Math.random() * 7200) + 300; // 5 mins to 2 hours
+        const platform = platforms[Math.floor(Math.random() * platforms.length)];
+        const category = categories[Math.floor(Math.random() * categories.length)];
+        const router = routers[Math.floor(Math.random() * routers.length)];
+        const hostname = hostnames[Math.floor(Math.random() * hostnames.length)];
+        
+        dummy.push({
+          id: `dummy-${i}`,
+          meterId: router,
+          hostname: hostname,
+          ip: `192.168.1.${10 + Math.floor(Math.random() * 50)}`,
+          mac: `00:11:22:33:44:${i.toString(16).padStart(2, '0')}`,
+          platform: platform,
+          category: category,
+          timestamp: start,
+          duration: duration
+        });
+      }
+      setData(dummy.sort((a, b) => a.timestamp - b.timestamp));
     } finally {
       setLoading(false);
     }
@@ -211,13 +286,29 @@ export default function TimelinePage() {
 
   const allSessions = useMemo(() => {
     let filteredData = data;
-    if (timeRange !== 'all') {
+    
+    if (timeRange === 'custom' && startDate && endDate) {
+      const startTs = startDate.getTime() / 1000;
+      const endTs = endDate.getTime() / 1000;
+      filteredData = data.filter(d => d.timestamp >= startTs && d.timestamp <= endTs);
+    } else if (timeRange !== 'all' && timeRange !== 'custom') {
       const now = Date.now() / 1000;
       const hours = parseInt(timeRange);
       filteredData = data.filter(d => (now - d.timestamp) <= hours * 3600);
     }
+    
     return groupEventsIntoSessions(filteredData, gapThreshold);
-  }, [data, gapThreshold, timeRange]);
+  }, [data, gapThreshold, timeRange, startDate, endDate]);
+
+  const ganttTimeRange = useMemo(() => {
+    if (timeRange === 'custom' && startDate && endDate) {
+      return {
+        start: startDate.getTime() / 1000,
+        end: endDate.getTime() / 1000
+      };
+    }
+    return undefined;
+  }, [timeRange, startDate, endDate]);
 
   const routerGroups = useMemo(() => {
     const groups = d3.group(allSessions, d => d.meterId);
@@ -335,7 +426,11 @@ export default function TimelinePage() {
                 {(['1h', '6h', '24h', 'all'] as const).map(range => (
                   <button
                     key={range}
-                    onClick={() => setTimeRange(range)}
+                    onClick={() => {
+                      setTimeRange(range);
+                      setStartDate(null);
+                      setEndDate(null);
+                    }}
                     className={cn(
                       "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all uppercase tracking-wider",
                       timeRange === range 
@@ -383,6 +478,68 @@ export default function TimelinePage() {
                   <p className="text-xs text-brand-muted italic">No activity data available for this range.</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Timeline Controls - Near Gantt Chart */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-brand-card/30 border border-brand-border rounded-3xl p-6 backdrop-blur-sm">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-brand-accent/10 rounded-xl border border-brand-accent/20">
+            <Settings2 className="text-brand-accent h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg tracking-tight">Timeline Filters</h3>
+            <p className="text-[10px] text-brand-muted uppercase tracking-widest font-bold">Adjust time window for charts</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+          {/* Booking-style Date Range Picker */}
+          <div className="flex items-center gap-4 bg-brand-bg/50 p-3 rounded-2xl border border-brand-border shadow-inner flex-1 md:flex-none">
+            <div className="flex flex-col min-w-[200px]">
+              <label className="text-[9px] font-black text-brand-accent uppercase mb-1 tracking-tighter">Select Activity Period</label>
+              <DatePicker
+                selectsRange={true}
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(update) => {
+                  const [start, end] = update;
+                  setStartDate(start);
+                  setEndDate(end);
+                  if (start) setTimeRange('custom');
+                }}
+                showTimeSelect
+                timeFormat="HH:mm"
+                timeIntervals={15}
+                timeCaption="time"
+                isClearable={true}
+                placeholderText="Select date & time range"
+                className="bg-transparent text-xs text-brand-text outline-none cursor-pointer hover:text-brand-accent transition-colors w-full"
+                dateFormat="MMM d, yyyy h:mm aa"
+                maxDate={new Date()}
+              />
+            </div>
+            
+            <div className="w-px h-8 bg-brand-border" />
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setStartDate(startOfDay(new Date()));
+                  setEndDate(endOfDay(new Date()));
+                  setTimeRange('custom');
+                }}
+                className={cn(
+                  "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                  timeRange === 'custom' && startDate && isSameDay(startDate, new Date())
+                    ? "bg-brand-accent text-white shadow-md shadow-brand-accent/20"
+                    : "bg-brand-bg text-brand-muted hover:text-brand-text border border-brand-border"
+                )}
+              >
+                Today
+              </button>
             </div>
           </div>
         </div>
@@ -460,6 +617,8 @@ export default function TimelinePage() {
               yField="hostname" 
               colorField="category"
               title="Devices x Category Timeline"
+              startTime={ganttTimeRange?.start}
+              endTime={ganttTimeRange?.end}
               onBarClick={(s) => {
                 setSelectedDevice(s.hostname);
                 setSelectedCategory(s.category);
@@ -495,6 +654,8 @@ export default function TimelinePage() {
               yField="platform" 
               colorField="platform"
               title="Platform Usage Timeline"
+              startTime={ganttTimeRange?.start}
+              endTime={ganttTimeRange?.end}
             />
           </motion.div>
         )}

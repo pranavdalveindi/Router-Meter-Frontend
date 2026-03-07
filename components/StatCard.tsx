@@ -18,7 +18,7 @@ export const StatCard = ({ title, value, icon: Icon, trend }: StatCardProps) => 
           "text-xs mt-2 font-medium",
           trend.startsWith('+') ? "text-emerald-500" : "text-rose-500"
         )}>
-          {trend} <span className="text-brand-muted font-normal ml-1">from last hour</span>
+          {trend} <span className="text-brand-muted font-normal ml-1">total</span>
         </p>
       )}
     </div>
