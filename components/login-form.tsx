@@ -25,7 +25,7 @@ export function LoginForm() {
     try {
       // Note: This API call will fail if the server is not running on port 4000.
       // For the demo, we'll simulate a successful login if the API fails.
-      const res = await fetch("https://api-router-dev.indirex.io/api/auth/login", {
+      const res = await fetch("https://api-router-dev.indirex.io/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
