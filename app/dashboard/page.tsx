@@ -128,12 +128,12 @@ export default function DashboardPage() {
     <div className="space-y-8">
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
+        {/* <StatCard 
           title="Active Connections" 
           value={stats.activeDevices.toString()} 
           icon={Smartphone} 
           trend={stats.activeDevices > 0 ? "+1" : "0"} 
-        />
+        /> */}
         <StatCard 
           title="Total Event Logs" 
           value={stats.totalEvents.toString()} 

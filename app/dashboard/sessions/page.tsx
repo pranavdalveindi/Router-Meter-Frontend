@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Settings2, 
-  Search
+  Search,
+  Download
 } from 'lucide-react';
 import { useDashboard } from '@/components/DashboardProvider';
 import { groupEventsIntoSessions } from '@/lib/sessionUtils';
@@ -15,6 +16,7 @@ export default function SessionsPage() {
   const [loading, setLoading] = useState(true);
   const [gapThreshold, setGapThreshold] = useState(120);
   const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     setTitle("User Sessions");
@@ -24,7 +26,6 @@ export default function SessionsPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-
       const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData = await response.json();
@@ -47,8 +48,55 @@ export default function SessionsPage() {
       const hours = parseInt(timeRange);
       filteredData = data.filter(d => (now - d.timestamp) <= hours * 3600);
     }
-    return groupEventsIntoSessions(filteredData, gapThreshold);
-  }, [data, gapThreshold, timeRange]);
+    const sessions = groupEventsIntoSessions(filteredData, gapThreshold);
+    
+    if (!searchTerm) return sessions;
+    
+    const lowerSearch = searchTerm.toLowerCase();
+    return sessions.filter(s => 
+      s.hostname.toLowerCase().includes(lowerSearch) ||
+      s.meterId.toLowerCase().includes(lowerSearch) ||
+      s.ip.toLowerCase().includes(lowerSearch) ||
+      s.mac.toLowerCase().includes(lowerSearch) ||
+      s.platform.toLowerCase().includes(lowerSearch) ||
+      s.category.toLowerCase().includes(lowerSearch)
+    );
+  }, [data, gapThreshold, timeRange, searchTerm]);
+
+  const handleExport = () => {
+    if (allSessions.length === 0) return;
+
+    const headers = [
+      "Router ID", "IP", "Hostname", "MAC Address", "Platform", "Category", "Start Time", "End Time", "Duration (s)"
+    ];
+
+    const rows = allSessions.map(s => [
+      s.meterId,
+      s.ip,
+      s.hostname,
+      s.mac,
+      s.platform,
+      s.category,
+      new Date(s.startTime * 1000).toLocaleString(),
+      new Date(s.endTime * 1000).toLocaleString(),
+      s.duration
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `sessions_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -113,9 +161,18 @@ export default function SessionsPage() {
               <input 
                 type="text" 
                 placeholder="Search sessions..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-brand-bg border border-brand-border rounded-xl pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-brand-accent outline-none w-64"
               />
             </div>
+            <button 
+              onClick={handleExport}
+              className="flex items-center gap-2 px-6 py-2 bg-brand-accent text-white rounded-xl text-xs font-bold hover:shadow-lg hover:shadow-brand-accent/30 transition-all active:scale-95"
+            >
+              <Download size={14} />
+              Export CSV
+            </button>
             <div className="px-4 py-2 bg-brand-accent/10 border border-brand-accent/20 rounded-xl">
               <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest">{allSessions.length} Total Sessions</span>
             </div>
