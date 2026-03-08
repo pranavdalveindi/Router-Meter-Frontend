@@ -32,6 +32,7 @@ export type RowData = {
   timestamp: string | number;
   type: number;
   details: Record<string, any>;
+  member_code?: string;
 };
 
 const columns: ColumnDef<RowData>[] = [
@@ -118,17 +119,10 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "member",
     header: "Member",
-    accessorFn: (row) => {
-      const mac = findValue(row.details, "mac") || findValue(row.details.device_details, "mac");
-      const ip = findValue(row.details, ["source_ip_v4", "ip", "source_ip"]) || findValue(row.details.domain_activity, "source_ip");
-    
-      return (
-        "—"
-      );
-    },
+    accessorKey: "member_code", // directly from backend
     cell: ({ getValue }) => (
       <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-xs font-semibold">
-        {getValue() as string}
+        {getValue() as string ?? "—"}
       </span>
     ),
   },

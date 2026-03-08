@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
+      const response = await fetch("http://localhost:4000/api/router-event");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData: RowData[] = await response.json();
       setData(fetchedData);
