@@ -6,6 +6,9 @@ export interface Session {
   hostname: string;
   ip: string;
   mac: string;
+  hhid: string;
+  member: string;
+  deviceType: string;
   platform: string;
   category: string;
   subCategory: string;
@@ -33,6 +36,21 @@ export function groupEventsIntoSessions(
     const hostname = findValue(event.details, "hostname") || findValue(event.details, "device_name") || "Unknown Device";
     const ip = findValue(event.details, "ip") || "Unknown IP";
     const mac = findValue(event.details, "mac") || "Unknown MAC";
+    const hhid =
+      findValue(event.details, "hhid") ||
+      event.hhid ||
+      "N/A";
+    const member =
+      findValue(event.details, ["member", "user"]) ||
+      event.member ||
+      event.member_code ||   // ✅ important
+      "Unknown";
+
+    const deviceType =
+      findValue(event.details, ["device_type", "type"]) ||
+      event.deviceType ||
+      event.device_type ||   // ✅ important
+      "Other";
     const platform = findValue(event.details, "platform") || "Unknown";
     const category = findValue(event.details, "category") || "Unknown";
     const subCategory = findValue(event.details, "sub_category") || "Default";
@@ -70,6 +88,9 @@ export function groupEventsIntoSessions(
         hostname,
         ip,
         mac,
+        hhid,
+        member,
+        deviceType,
         platform,
         category,
         subCategory,

@@ -104,7 +104,7 @@ export function LoginForm() {
         <Field>
           <div className="flex items-center justify-between">
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Link href="#" className="text-xs text-brand-accent hover:underline">Forgot password?</Link>
+            {/* <Link href="#" className="text-xs text-brand-accent hover:underline">Forgot password?</Link> */}
           </div>
 
           <div className="relative">

@@ -33,6 +33,7 @@ export type RowData = {
   type: number;
   details: Record<string, any>;
   member_code?: string;
+  hhid?: string;
 };
 
 const columns: ColumnDef<RowData>[] = [
@@ -56,7 +57,7 @@ const columns: ColumnDef<RowData>[] = [
             "w-2.5 h-2.5 rounded-full",
             val === 'connected' || val === 'active' ? "bg-emerald-500" : "bg-rose-500"
           )} />
-          <span className="capitalize"></span>
+          <span className="capitalize">{val}</span>
         </div>
       );
     }
@@ -75,17 +76,10 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "hhid",
     header: "HHID",
-    accessorFn: (row) => {
-      const mac = findValue(row.details, "mac") || findValue(row.details.device_details, "mac");
-      const ip = findValue(row.details, ["source_ip_v4", "ip", "source_ip"]) || findValue(row.details.domain_activity, "source_ip");
-    
-      return (
-        "—"
-      );
-    },
+    accessorKey: "hhid",
     cell: ({ getValue }) => (
-      <span className="px-2 py-0.5 rounded bg-black-500/10 text-indigo-400 text-xs font-semibold">
-        {getValue() as string}
+      <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-xs font-semibold">
+        {(getValue() as string) ?? "—"}
       </span>
     ),
   },
@@ -126,18 +120,18 @@ const columns: ColumnDef<RowData>[] = [
       </span>
     ),
   },
-  {
-    id: "mac",
-    header: "MAC",
-    accessorFn: (row) => findValue(row.details, "mac") ?? "—",
-    cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
-  },
-  {
-    id: "sourceIP",
-    header: "Source IP",
-    accessorFn: (row) => findValue(row.details, ["source_ip_v4", "ip", "ip_v4", "source_ip"]) ?? "—",
-    cell: ({ getValue }) => <span className="font-mono text-brand-muted">{getValue() as string}</span>
-  },
+  // {
+  //   id: "mac",
+  //   header: "MAC",
+  //   accessorFn: (row) => findValue(row.details, "mac") ?? "—",
+  //   cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
+  // },
+  // {
+  //   id: "sourceIP",
+  //   header: "Source IP",
+  //   accessorFn: (row) => findValue(row.details, ["source_ip_v4", "ip", "ip_v4", "source_ip"]) ?? "—",
+  //   cell: ({ getValue }) => <span className="font-mono text-brand-muted">{getValue() as string}</span>
+  // },
   {
     id: "platform",
     header: "Platform",
@@ -170,6 +164,17 @@ const columns: ColumnDef<RowData>[] = [
   //     );
   //   }
   // },
+  {
+    id: "deviceType",
+    header: "Device Type",
+    accessorKey: "device_type",
+    cell: ({ getValue }) => (
+      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-xs font-semibold capitalize">
+        {(getValue() as string) ?? "—"}
+      </span>
+    ),
+  },
+  
   {
     id: "hostname",
     header: "Hostname",
