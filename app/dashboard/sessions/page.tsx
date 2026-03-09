@@ -4,19 +4,30 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Settings2, 
   Search,
-  Download
+  Download,
+  Filter,
+  Calendar
 } from 'lucide-react';
 import { useDashboard } from '@/components/DashboardProvider';
 import { groupEventsIntoSessions } from '@/lib/sessionUtils';
 import { cn } from '@/lib/utils';
+import DatePicker from 'react-datepicker';
+import { startOfDay, endOfDay, isSameDay } from 'date-fns';
 
 export default function SessionsPage() {
   const { setTitle, setSubtitle, refreshTrigger } = useDashboard();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [gapThreshold, setGapThreshold] = useState(120);
-  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | 'all'>('all');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | 'all' | 'custom'>('all');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // New filters
+  const [selectedMember, setSelectedMember] = useState<string>('all');
+  const [selectedRouter, setSelectedRouter] = useState<string>('all');
+  const [selectedDeviceType, setSelectedDeviceType] = useState<string>('all');
 
   useEffect(() => {
     setTitle("User Sessions");
@@ -43,38 +54,57 @@ export default function SessionsPage() {
 
   const allSessions = useMemo(() => {
     let filteredData = data;
-    if (timeRange !== 'all') {
+    
+    // Time filtering
+    if (timeRange === 'custom' && startDate && endDate) {
+      const startTs = startDate.getTime() / 1000;
+      const endTs = endDate.getTime() / 1000;
+      filteredData = data.filter(d => d.timestamp >= startTs && d.timestamp <= endTs);
+    } else if (timeRange !== 'all' && timeRange !== 'custom') {
       const now = Date.now() / 1000;
       const hours = parseInt(timeRange);
       filteredData = data.filter(d => (now - d.timestamp) <= hours * 3600);
     }
+    
     const sessions = groupEventsIntoSessions(filteredData, gapThreshold);
     
-    if (!searchTerm) return sessions;
-    
-    const lowerSearch = searchTerm.toLowerCase();
-    return sessions.filter(s => 
-      s.hostname.toLowerCase().includes(lowerSearch) ||
-      s.meterId.toLowerCase().includes(lowerSearch) ||
-      s.ip.toLowerCase().includes(lowerSearch) ||
-      s.mac.toLowerCase().includes(lowerSearch) ||
-      s.platform.toLowerCase().includes(lowerSearch) ||
-      s.category.toLowerCase().includes(lowerSearch)
-    );
-  }, [data, gapThreshold, timeRange, searchTerm]);
+    // Field filtering
+    return sessions.filter(s => {
+      const matchesSearch = !searchTerm || [
+        s.hostname, s.meterId, s.platform, s.category, s.hhid, s.member, s.deviceType
+      ].some(val => val.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesMember = selectedMember === 'all' || s.member === selectedMember;
+      const matchesRouter = selectedRouter === 'all' || s.meterId === selectedRouter;
+      const matchesDeviceType = selectedDeviceType === 'all' || s.deviceType === selectedDeviceType;
+      
+      return matchesSearch && matchesMember && matchesRouter && matchesDeviceType;
+    });
+  }, [data, gapThreshold, timeRange, startDate, endDate, searchTerm, selectedMember, selectedRouter, selectedDeviceType]);
+
+  // Extract unique values for filters
+  const filterOptions = useMemo(() => {
+    const sessions = groupEventsIntoSessions(data, gapThreshold);
+    return {
+      members: ['all', ...Array.from(new Set(sessions.map(s => s.member)))],
+      routers: ['all', ...Array.from(new Set(sessions.map(s => s.meterId)))],
+      deviceTypes: ['all', ...Array.from(new Set(sessions.map(s => s.deviceType)))]
+    };
+  }, [data, gapThreshold]);
 
   const handleExport = () => {
     if (allSessions.length === 0) return;
 
     const headers = [
-      "Router ID", "IP", "Hostname", "MAC Address", "Platform", "Category", "Start Time", "End Time", "Duration (s)"
+      "Router ID", "HHID", "Member", "Device Type", "Hostname", "Platform", "Category", "Start Time", "End Time", "Duration (s)"
     ];
 
     const rows = allSessions.map(s => [
       s.meterId,
-      s.ip,
+      s.hhid,
+      s.member,
+      s.deviceType,
       s.hostname,
-      s.mac,
       s.platform,
       s.category,
       new Date(s.startTime * 1000).toLocaleString(),
@@ -100,53 +130,104 @@ export default function SessionsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Controls */}
-      {/* <div className="bg-brand-card/50 border border-brand-border rounded-[2rem] p-8 shadow-xl backdrop-blur-md">
+      {/* Filter Controls */}
+      <div className="bg-brand-card/50 border border-brand-border rounded-[2rem] p-8 shadow-xl backdrop-blur-md space-y-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div className="flex items-center gap-4">
             <div className="p-4 bg-brand-accent/10 rounded-2xl border border-brand-accent/20">
-              <Settings2 className="text-brand-accent h-6 w-6" />
+              <Filter className="text-brand-accent h-6 w-6" />
             </div>
             <div>
-              <h3 className="font-bold text-xl tracking-tight">Continuity Parameters</h3>
-              <p className="text-xs text-brand-muted mt-1">Fine-tune session detection thresholds.</p>
+              <h3 className="font-bold text-xl tracking-tight">Session Filters</h3>
+              <p className="text-xs text-brand-muted mt-1">Refine logs by member, router, type, or time.</p>
             </div>
           </div>
 
-          <div className="flex-1 max-w-md space-y-4">
-            <div className="flex justify-between items-end">
-              <label className="text-xs font-bold text-brand-muted uppercase tracking-widest">Gap Threshold</label>
-              <span className="font-mono text-brand-accent text-lg font-bold">{gapThreshold}s</span>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Time Presets */}
+            <div className="flex items-center gap-2 bg-brand-bg p-1 rounded-xl border border-brand-border">
+              {(['1h', '6h', '24h', 'all'] as const).map(range => (
+                <button
+                  key={range}
+                  onClick={() => { setTimeRange(range); setStartDate(null); setEndDate(null); }}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all uppercase tracking-wider",
+                    timeRange === range && !startDate
+                      ? "bg-brand-accent text-white shadow-lg shadow-brand-accent/20" 
+                      : "text-brand-muted hover:text-brand-text"
+                  )}
+                >
+                  {range}
+                </button>
+              ))}
             </div>
-            <input 
-              type="range" 
-              min="5" 
-              max="600" 
-              step="5"
-              value={gapThreshold} 
-              onChange={(e) => setGapThreshold(parseInt(e.target.value))}
-              className="w-full h-2 bg-brand-bg rounded-lg appearance-none cursor-pointer accent-brand-accent"
-            />
-          </div>
 
-          <div className="flex items-center gap-2 bg-brand-bg p-1 rounded-xl border border-brand-border">
-            {(['1h', '6h', '24h', 'all'] as const).map(range => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all uppercase tracking-wider",
-                  timeRange === range 
-                    ? "bg-brand-accent text-white shadow-lg shadow-brand-accent/20" 
-                    : "text-brand-muted hover:text-brand-text"
-                )}
-              >
-                {range}
-              </button>
-            ))}
+            {/* Custom Date Picker */}
+            <div className="flex items-center gap-3 bg-brand-bg/80 p-2 px-4 rounded-xl border border-brand-border shadow-inner">
+              <Calendar size={14} className="text-brand-accent" />
+              <DatePicker
+                selectsRange={true}
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(update) => {
+                  const [start, end] = update;
+                  setStartDate(start);
+                  setEndDate(end);
+                  if (start) setTimeRange('custom');
+                }}
+                isClearable={true}
+                placeholderText="Custom Range"
+                className="bg-transparent text-xs text-brand-text font-bold outline-none cursor-pointer w-40"
+                dateFormat="MMM d, yyyy"
+              />
+            </div>
           </div>
         </div>
-      </div> */}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Member Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Member</label>
+            <select 
+              value={selectedMember}
+              onChange={(e) => setSelectedMember(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.members.map(m => (
+                <option key={m} value={m}>{m === 'all' ? 'All Members' : m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Router Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Router</label>
+            <select 
+              value={selectedRouter}
+              onChange={(e) => setSelectedRouter(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.routers.map(r => (
+                <option key={r} value={r}>{r === 'all' ? 'All Routers' : r}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Device Type Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Device Type</label>
+            <select 
+              value={selectedDeviceType}
+              onChange={(e) => setSelectedDeviceType(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.deviceTypes.map(t => (
+                <option key={t} value={t}>{t === 'all' ? 'All Types' : t}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Detailed Table */}
       <div className="bg-brand-card/40 border border-brand-border rounded-[2rem] overflow-hidden shadow-2xl backdrop-blur-md">
@@ -183,9 +264,10 @@ export default function SessionsPage() {
             <thead>
               <tr className="bg-brand-bg/40 text-brand-muted border-b border-brand-border">
                 <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Router ID</th>
-                <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">IP</th>
+                <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">HHID</th>
+                <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Member</th>
+                <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Device Type</th>
                 <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Hostname</th>
-                <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">MAC Address</th>
                 <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Platform</th>
                 <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Category</th>
                 <th className="px-10 py-5 text-[10px] font-bold uppercase tracking-widest">Start Time</th>
@@ -200,13 +282,16 @@ export default function SessionsPage() {
                     <span className="font-mono text-xs text-brand-muted bg-brand-bg px-2 py-1 rounded border border-brand-border">{session.meterId}</span>
                   </td>
                   <td className="px-10 py-6">
-                    <span className="text-xs font-mono text-brand-muted">{session.ip}</span>
+                    <span className="text-xs font-mono text-brand-muted">{session.hhid}</span>
                   </td>
                   <td className="px-10 py-6">
-                    <span className="font-bold text-brand-text group-hover:text-brand-accent transition-colors">{session.hostname}</span>
+                    <span className="font-bold text-brand-text group-hover:text-brand-accent transition-colors">{session.member}</span>
                   </td>
                   <td className="px-10 py-6">
-                    <span className="text-[10px] font-mono text-brand-muted">{session.mac}</span>
+                    <span className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">{session.deviceType}</span>
+                  </td>
+                  <td className="px-10 py-6">
+                    <span className="text-xs font-bold text-brand-text/80">{session.hostname}</span>
                   </td>
                   <td className="px-10 py-6">
                     <span className="text-xs font-bold text-brand-text/80">{session.platform}</span>
