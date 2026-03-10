@@ -6,13 +6,16 @@ import {
   Search,
   Download,
   Filter,
-  Calendar
+  Calendar,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useDashboard } from '@/components/DashboardProvider';
 import { groupEventsIntoSessions } from '@/lib/sessionUtils';
 import { cn } from '@/lib/utils';
 import DatePicker from 'react-datepicker';
-import { startOfDay, endOfDay, isSameDay } from 'date-fns';
+import "react-datepicker/dist/react-datepicker.css";
+import { startOfDay, endOfDay, isSameDay, format } from 'date-fns';
 
 export default function SessionsPage() {
   const { setTitle, setSubtitle, refreshTrigger } = useDashboard();
@@ -24,10 +27,18 @@ export default function SessionsPage() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
   // New filters
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [selectedRouter, setSelectedRouter] = useState<string>('all');
   const [selectedDeviceType, setSelectedDeviceType] = useState<string>('all');
+  const [selectedHHID, setSelectedHHID] = useState<string>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [minDuration, setMinDuration] = useState<number>(0);
 
   useEffect(() => {
     setTitle("User Sessions");
@@ -43,6 +54,11 @@ export default function SessionsPage() {
       setData(fetchedData);
     } catch (err: any) {
       console.warn("API fetch failed, using mock data");
+      // Mock data for demonstration if API fails
+      setData([
+        { id: 1, timestamp: Date.now() / 1000, meterId: "R1", hhid: "H1", member: "User 1", deviceType: "Mobile", hostname: "host1", platform: "Android", category: "Social" },
+        { id: 2, timestamp: (Date.now() - 10000) / 1000, meterId: "R1", hhid: "H1", member: "User 1", deviceType: "Mobile", hostname: "host1", platform: "Android", category: "Social" },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -52,13 +68,13 @@ export default function SessionsPage() {
     fetchData();
   }, [fetchData, refreshTrigger]);
 
-  const allSessions = useMemo(() => {
+  const allSessionsFiltered = useMemo(() => {
     let filteredData = data;
     
     // Time filtering
-    if (timeRange === 'custom' && startDate && endDate) {
-      const startTs = startDate.getTime() / 1000;
-      const endTs = endDate.getTime() / 1000;
+    if (timeRange === 'custom' && startDate) {
+      const startTs = startOfDay(startDate).getTime() / 1000;
+      const endTs = endOfDay(endDate || startDate).getTime() / 1000;
       filteredData = data.filter(d => d.timestamp >= startTs && d.timestamp <= endTs);
     } else if (timeRange !== 'all' && timeRange !== 'custom') {
       const now = Date.now() / 1000;
@@ -69,18 +85,37 @@ export default function SessionsPage() {
     const sessions = groupEventsIntoSessions(filteredData, gapThreshold);
     
     // Field filtering
-    return sessions.filter(s => {
+    const filtered = sessions.filter(s => {
       const matchesSearch = !searchTerm || [
         s.hostname, s.meterId, s.platform, s.category, s.hhid, s.member, s.deviceType
-      ].some(val => val.toLowerCase().includes(searchTerm.toLowerCase()));
+      ].some(val => val?.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesMember = selectedMember === 'all' || s.member === selectedMember;
       const matchesRouter = selectedRouter === 'all' || s.meterId === selectedRouter;
       const matchesDeviceType = selectedDeviceType === 'all' || s.deviceType === selectedDeviceType;
+      const matchesHHID = selectedHHID === 'all' || s.hhid === selectedHHID;
+      const matchesPlatform = selectedPlatform === 'all' || s.platform === selectedPlatform;
+      const matchesCategory = selectedCategory === 'all' || s.category === selectedCategory;
+      const matchesDuration = s.duration >= minDuration && s.duration > 0;
       
-      return matchesSearch && matchesMember && matchesRouter && matchesDeviceType;
+      return matchesSearch && matchesMember && matchesRouter && matchesDeviceType && 
+             matchesHHID && matchesPlatform && matchesCategory && matchesDuration;
     });
-  }, [data, gapThreshold, timeRange, startDate, endDate, searchTerm, selectedMember, selectedRouter, selectedDeviceType]);
+
+    // Sort by start time descending
+    return filtered.slice().sort((a, b) => b.startTime - a.startTime);
+  }, [data, gapThreshold, timeRange, startDate, endDate, searchTerm, selectedMember, selectedRouter, selectedDeviceType, selectedHHID, selectedPlatform, selectedCategory, minDuration]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [allSessionsFiltered.length]);
+
+  const totalPages = Math.ceil(allSessionsFiltered.length / itemsPerPage);
+  const currentSessions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return allSessionsFiltered.slice(startIndex, startIndex + itemsPerPage);
+  }, [allSessionsFiltered, currentPage]);
 
   // Extract unique values for filters
   const filterOptions = useMemo(() => {
@@ -88,18 +123,21 @@ export default function SessionsPage() {
     return {
       members: ['all', ...Array.from(new Set(sessions.map(s => s.member)))],
       routers: ['all', ...Array.from(new Set(sessions.map(s => s.meterId)))],
-      deviceTypes: ['all', ...Array.from(new Set(sessions.map(s => s.deviceType)))]
+      deviceTypes: ['all', ...Array.from(new Set(sessions.map(s => s.deviceType)))],
+      hhids: ['all', ...Array.from(new Set(sessions.map(s => s.hhid)))],
+      platforms: ['all', ...Array.from(new Set(sessions.map(s => s.platform)))],
+      categories: ['all', ...Array.from(new Set(sessions.map(s => s.category)))]
     };
   }, [data, gapThreshold]);
 
   const handleExport = () => {
-    if (allSessions.length === 0) return;
+    if (allSessionsFiltered.length === 0) return;
 
     const headers = [
       "Router ID", "HHID", "Member", "Device Type", "Hostname", "Platform", "Category", "Start Time", "End Time", "Duration (s)"
     ];
 
-    const rows = allSessions.map(s => [
+    const rows = allSessionsFiltered.map(s => [
       s.meterId,
       s.hhid,
       s.member,
@@ -184,7 +222,7 @@ export default function SessionsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {/* Member Filter */}
           <div className="space-y-2">
             <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Member</label>
@@ -226,6 +264,60 @@ export default function SessionsPage() {
               ))}
             </select>
           </div>
+
+          {/* HHID Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">HHID</label>
+            <select 
+              value={selectedHHID}
+              onChange={(e) => setSelectedHHID(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.hhids.map(h => (
+                <option key={h} value={h}>{h === 'all' ? 'All HHIDs' : h}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Platform Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Platform</label>
+            <select 
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.platforms.map(p => (
+                <option key={p} value={p}>{p === 'all' ? 'All Platforms' : p}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Category</label>
+            <select 
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.categories.map(c => (
+                <option key={c} value={c}>{c === 'all' ? 'All Categories' : c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Duration Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Min Duration (s)</label>
+            <input 
+              type="number"
+              value={minDuration}
+              onChange={(e) => setMinDuration(Number(e.target.value))}
+              placeholder="e.g. 60"
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -255,7 +347,7 @@ export default function SessionsPage() {
               Export CSV
             </button>
             <div className="px-4 py-2 bg-brand-accent/10 border border-brand-accent/20 rounded-xl">
-              <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest">{allSessions.length} Total Sessions</span>
+              <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest">{allSessionsFiltered.length} Total Sessions</span>
             </div>
           </div>
         </div>
@@ -276,7 +368,7 @@ export default function SessionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border">
-              {allSessions.slice().reverse().map((session) => (
+              {currentSessions.map((session) => (
                 <tr key={session.id} className="hover:bg-brand-accent/5 transition-all group cursor-default">
                   <td className="px-10 py-6">
                     <span className="font-mono text-xs text-brand-muted bg-brand-bg px-2 py-1 rounded border border-brand-border">{session.meterId}</span>
@@ -300,10 +392,16 @@ export default function SessionsPage() {
                     <span className="text-[10px] font-bold text-brand-muted uppercase tracking-tighter">{session.category}</span>
                   </td>
                   <td className="px-10 py-6">
-                    <span className="text-xs font-mono text-brand-text/70">{new Date(session.startTime * 1000).toLocaleTimeString()}</span>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-brand-text/90">{format(new Date(session.startTime * 1000), 'MMM d, yyyy')}</span>
+                      <span className="text-[10px] font-mono text-brand-muted">{format(new Date(session.startTime * 1000), 'hh:mm:ss a')}</span>
+                    </div>
                   </td>
                   <td className="px-10 py-6">
-                    <span className="text-xs font-mono text-brand-text/70">{new Date(session.endTime * 1000).toLocaleTimeString()}</span>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-brand-text/90">{format(new Date(session.endTime * 1000), 'MMM d, yyyy')}</span>
+                      <span className="text-[10px] font-mono text-brand-muted">{format(new Date(session.endTime * 1000), 'hh:mm:ss a')}</span>
+                    </div>
                   </td>
                   <td className="px-10 py-6 text-right">
                     <span className="inline-block px-4 py-1.5 bg-brand-bg border border-brand-border rounded-xl font-mono text-xs font-bold text-brand-accent shadow-sm">
@@ -315,8 +413,61 @@ export default function SessionsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <div className="px-10 py-6 border-t border-brand-border flex items-center justify-between bg-brand-bg/10">
+          <div className="text-xs text-brand-muted font-medium">
+            Showing <span className="text-brand-text font-bold">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-brand-text font-bold">{Math.min(currentPage * itemsPerPage, allSessionsFiltered.length)}</span> of <span className="text-brand-text font-bold">{allSessionsFiltered.length}</span> sessions
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-xl border border-brand-border hover:bg-brand-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={cn(
+                      "w-8 h-8 rounded-lg text-xs font-bold transition-all",
+                      currentPage === pageNum 
+                        ? "bg-brand-accent text-white shadow-lg shadow-brand-accent/20" 
+                        : "text-brand-muted hover:text-brand-text hover:bg-brand-bg"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-xl border border-brand-border hover:bg-brand-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-

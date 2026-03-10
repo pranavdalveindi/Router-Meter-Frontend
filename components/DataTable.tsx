@@ -40,8 +40,7 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "srNo",
     header: "Sr No",
-    cell: ({ row, table }) =>
-      row.index + 1 + table.getState().pagination.pageIndex * table.getState().pagination.pageSize,
+    cell: ({ row }) => row.index + 1,
     enableSorting: false,
     enableHiding: false,
   },
@@ -113,19 +112,13 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "member",
     header: "Member",
-    accessorKey: "member_code", // directly from backend
+    accessorKey: "member_code",
     cell: ({ getValue }) => (
       <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-xs font-semibold">
         {getValue() as string ?? "—"}
       </span>
     ),
   },
-  // {
-  //   id: "mac",
-  //   header: "MAC",
-  //   accessorFn: (row) => findValue(row.details, "mac") ?? "—",
-  //   cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
-  // },
   // {
   //   id: "sourceIP",
   //   header: "Source IP",
@@ -147,23 +140,6 @@ const columns: ColumnDef<RowData>[] = [
     header: "Category",
     accessorFn: (row) => findValue(row.details, ["category", "service_category"]) ?? "—",
   },
-  // {
-  //   id: "event",
-  //   header: "Status",
-  //   accessorFn: (row) => findValue(row.details, "event") ?? "—",
-  //   cell: ({ getValue }) => {
-  //     const val = getValue() as string;
-  //     return (
-  //       <div className="flex items-center gap-2">
-  //         <div className={cn(
-  //           "w-1.5 h-1.5 rounded-full",
-  //           val === 'connected' || val === 'active' ? "bg-emerald-500" : "bg-rose-500"
-  //         )} />
-  //         <span className="capitalize"></span>
-  //       </div>
-  //     );
-  //   }
-  // },
   {
     id: "deviceType",
     header: "Device Type",
@@ -174,7 +150,6 @@ const columns: ColumnDef<RowData>[] = [
       </span>
     ),
   },
-  
   {
     id: "hostname",
     header: "Hostname",
@@ -433,7 +408,7 @@ export const DataTable = ({ data }: DataTableProps) => {
             ) : (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-12 text-center text-brand-muted">
-                  Loading Data...
+                  No records found.
                 </td>
               </tr>
             )}

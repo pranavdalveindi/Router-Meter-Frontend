@@ -88,15 +88,14 @@ export default function Home() {
             variants={itemVariants}
             className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.9] max-w-4xl mx-auto"
           >
-            Monitor your network with <span className="text-brand-accent">precision.</span>
+            Monitor your <span className="text-brand-accent">Device</span>
           </motion.h1>
 
           <motion.p 
             variants={itemVariants}
             className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed"
           >
-            Indirex Router Meter provides enterprise-grade network visibility for your home or office. 
-            Track every packet, secure every device, and optimize your connection.
+            Indirex Router Meter
           </motion.p>
 
           <motion.div 
