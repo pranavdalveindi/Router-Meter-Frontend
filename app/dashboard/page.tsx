@@ -21,22 +21,22 @@ import { useDashboard } from '@/components/DashboardProvider';
 
 // --- Mock Data (Fallback) ---
 
-const MOCK_TABLE_DATA: RowData[] = [
-  { id: 1, deviceId: 'Router00003', timestamp: 1740933701, type: 10, details: { domain_activity: { platform: 'Windows', category: 'OTHER', event: 'connected', hostname: 'DESKTOP-OCOPN N4', mac: 'F8:5E:A0:DD:98:01', source_ip_v4: '192.168.3.109' } } },
-  { id: 2, deviceId: 'Router00008', timestamp: 1740919478, type: 10, details: { domain_activity: { platform: 'Android', category: 'STREAMING', event: 'active', hostname: 'Pixel-7-Pro', mac: 'A4:5E:B0:CC:12:34', source_ip_v4: '192.168.1.10' } } },
-  { id: 3, deviceId: 'Router00001', timestamp: 1740893400, type: 10, details: { domain_activity: { platform: 'iOS', category: 'SOCIAL', event: 'connected', hostname: 'iPhone-15', mac: 'C1:22:D3:E4:F5:66', source_ip_v4: '192.168.0.5' } } },
-  { id: 4, deviceId: 'Router00005', timestamp: 1740924922, type: 10, details: { domain_activity: { platform: 'Linux', category: 'DEVELOPMENT', event: 'active', hostname: 'Workstation-01', mac: 'E2:44:A1:B2:C3:D4', source_ip_v4: '192.168.1.55' } } },
-];
+// const MOCK_TABLE_DATA: RowData[] = [
+//   { id: 1, deviceId: 'Router00003', timestamp: 1740933701, type: 10, details: { domain_activity: { platform: 'Windows', category: 'OTHER', event: 'connected', hostname: 'DESKTOP-OCOPN N4', mac: 'F8:5E:A0:DD:98:01', source_ip_v4: '192.168.3.109' } } },
+//   { id: 2, deviceId: 'Router00008', timestamp: 1740919478, type: 10, details: { domain_activity: { platform: 'Android', category: 'STREAMING', event: 'active', hostname: 'Pixel-7-Pro', mac: 'A4:5E:B0:CC:12:34', source_ip_v4: '192.168.1.10' } } },
+//   { id: 3, deviceId: 'Router00001', timestamp: 1740893400, type: 10, details: { domain_activity: { platform: 'iOS', category: 'SOCIAL', event: 'connected', hostname: 'iPhone-15', mac: 'C1:22:D3:E4:F5:66', source_ip_v4: '192.168.0.5' } } },
+//   { id: 4, deviceId: 'Router00005', timestamp: 1740924922, type: 10, details: { domain_activity: { platform: 'Linux', category: 'DEVELOPMENT', event: 'active', hostname: 'Workstation-01', mac: 'E2:44:A1:B2:C3:D4', source_ip_v4: '192.168.1.55' } } },
+// ];
 
-const CHART_DATA = [
-  { time: '00:00', traffic: 120 },
-  { time: '04:00', traffic: 80 },
-  { time: '08:00', traffic: 450 },
-  { time: '12:00', traffic: 890 },
-  { time: '16:00', traffic: 670 },
-  { time: '20:00', traffic: 980 },
-  { time: '23:59', traffic: 340 },
-];
+// const CHART_DATA = [
+//   { time: '00:00', traffic: 120 },
+//   { time: '04:00', traffic: 80 },
+//   { time: '08:00', traffic: 450 },
+//   { time: '12:00', traffic: 890 },
+//   { time: '16:00', traffic: 670 },
+//   { time: '20:00', traffic: 980 },
+//   { time: '23:59', traffic: 340 },
+// ];
 
 export default function DashboardPage() {
   // User's data fetching logic
@@ -59,7 +59,6 @@ export default function DashboardPage() {
       setData(fetchedData);
     } catch (err: any) {
       console.warn("API fetch failed, using mock data:", err.message);
-      setData(MOCK_TABLE_DATA);
     } finally {
       setLoading(false);
     }
