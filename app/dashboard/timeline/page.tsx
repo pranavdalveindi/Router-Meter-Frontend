@@ -38,6 +38,7 @@ const GanttChart = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || sessions.length === 0) return;
@@ -118,7 +119,7 @@ const GanttChart = ({
       .attr("width", width + margin.left)
       .attr("height", y.bandwidth())
       .attr("fill", "var(--brand-muted)")
-      .attr("opacity", 0.05)
+      .attr("opacity", 0.08)
       .attr("rx", 12);
 
     rows.append("text")
@@ -197,17 +198,100 @@ const GanttChart = ({
             .attr("width", d => Math.max(1, newX(d.endTime) - newX(d.startTime)));
       });
 
+    zoomRef.current = zoom;
     svg.call(zoom);
 
   }, [sessions, yField, colorField, onBarClick, startTime, endTime]);
 
+  const scrollToTime = (time: number) => {
+    if (!svgRef.current || !zoomRef.current || sessions.length === 0) return;
+    
+    const container = containerRef.current!;
+    const margin = { left: 180, right: 60 };
+    const width = container.clientWidth - margin.left - margin.right;
+    
+    const minTime = startTime || d3.min(sessions, d => d.startTime) || 0;
+    const maxTime = endTime || d3.max(sessions, d => d.endTime) || Date.now() / 1000;
+    
+    const x = d3.scaleLinear().domain([minTime, maxTime]).range([0, width]);
+    
+    const targetX = x(time);
+    const transform = d3.zoomIdentity.translate(-targetX + width/2, 0);
+    
+    d3.select(svgRef.current)
+      .transition()
+      .duration(750)
+      .call(zoomRef.current.transform, transform);
+  };
+
+  const checkpoints = useMemo(() => {
+    if (sessions.length === 0) return [];
+    // Just take a few representative points or all unique start times if small
+    const sorted = [...sessions].sort((a, b) => a.startTime - b.startTime);
+    const points = [];
+    const step = Math.max(1, Math.floor(sorted.length / 10));
+    for (let i = 0; i < sorted.length; i += step) {
+      points.push(sorted[i]);
+    }
+    return points;
+  }, [sessions]);
+
+  const minTime = startTime || d3.min(sessions, d => d.startTime) || 0;
+  const maxTime = endTime || d3.max(sessions, d => d.endTime) || Date.now() / 1000;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-bold text-brand-muted uppercase tracking-[0.2em]">{title}</h4>
-        <span className="text-[10px] text-brand-muted italic">Scroll to zoom • Drag to pan</span>
+        <div className="flex items-center gap-4 text-[10px] text-brand-muted font-bold uppercase tracking-widest">
+          <span>Scroll to zoom</span>
+          <div className="w-px h-3 bg-brand-border" />
+          <span>Drag to pan</span>
+        </div>
       </div>
-      <div ref={containerRef} className="w-full overflow-x-auto bg-brand-card/50 dark:bg-brand-card/30 rounded-[2rem] border border-brand-border p-8 shadow-2xl backdrop-blur-xl">
+
+      {/* Timeline Scroller with Checkpoints - Repositioned Above */}
+      <div className="bg-brand-card/40 border border-brand-border rounded-3xl p-4 px-8 shadow-inner relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full bg-brand-accent/[0.02] pointer-events-none" />
+        
+        <div className="relative h-10 flex items-center group/scroller">
+          {/* Background Track */}
+          <div className="absolute inset-0 h-2 bg-brand-border/40 rounded-full top-1/2 -translate-y-1/2 shadow-inner" />
+          
+          {/* Checkpoints */}
+          {checkpoints.map((cp, idx) => {
+            const pos = ((cp.startTime - minTime) / (maxTime - minTime)) * 100;
+            return (
+              <button
+                key={idx}
+                onClick={() => scrollToTime(cp.startTime)}
+                className="absolute w-4 h-4 bg-brand-accent rounded-full -translate-x-1/2 hover:scale-125 hover:shadow-xl hover:shadow-brand-accent/40 transition-all z-10 border-2 border-brand-card flex items-center justify-center group/point"
+                style={{ left: `${pos}%` }}
+              >
+                <div className="w-1 h-1 bg-white rounded-full opacity-0 group-hover/point:opacity-100 transition-opacity" />
+                
+                {/* Tooltip on hover */}
+                <div className="absolute bottom-full mb-2 opacity-0 group-hover/point:opacity-100 transition-all pointer-events-none translate-y-2 group-hover/point:translate-y-0">
+                  <div className="bg-brand-text text-brand-card text-[8px] font-black py-1 px-2 rounded-md whitespace-nowrap shadow-xl">
+                    {new Date(cp.startTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <div className="w-1.5 h-1.5 bg-brand-text rotate-45 mx-auto -mt-1" />
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Time Labels */}
+          <div className="absolute left-0 -bottom-1 flex flex-col">
+            <span className="text-[8px] font-mono font-bold text-brand-muted">{new Date(minTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div className="absolute right-0 -bottom-1 flex flex-col items-end">
+            <span className="text-[8px] font-mono font-bold text-brand-muted">{new Date(maxTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        </div>
+      </div>
+
+      <div ref={containerRef} className="w-full overflow-x-auto bg-brand-card/50 dark:bg-brand-card/30 rounded-[2.5rem] border border-brand-border p-8 shadow-2xl backdrop-blur-xl">
         <svg ref={svgRef} className="min-w-full"></svg>
       </div>
     </div>
@@ -223,6 +307,9 @@ export default function TimelinePage() {
   const [selectedRouter, setSelectedRouter] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedHHID, setSelectedHHID] = useState<string>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
+  const [minDuration, setMinDuration] = useState<number>(0);
   const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | 'all' | 'custom'>('custom');
   const [startDate, setStartDate] = useState<Date | null>(startOfDay(new Date()));
   const [endDate, setEndDate] = useState<Date | null>(endOfDay(new Date()));
@@ -235,7 +322,7 @@ export default function TimelinePage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
+      const response = await fetch("http://localhost:4000/api/router-events/router-events");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData = await response.json();
       
@@ -297,8 +384,17 @@ export default function TimelinePage() {
       filteredData = data.filter(d => (now - d.timestamp) <= hours * 3600);
     }
     
-    return groupEventsIntoSessions(filteredData, gapThreshold);
-  }, [data, gapThreshold, timeRange, startDate, endDate]);
+    const sessions = groupEventsIntoSessions(filteredData, gapThreshold);
+    
+    return sessions.filter(s => {
+      const matchesHHID = selectedHHID === 'all' || s.hhid === selectedHHID;
+      const matchesPlatform = selectedPlatform === 'all' || s.platform === selectedPlatform;
+      const matchesCategory = !selectedCategory || s.category === selectedCategory;
+      const matchesDuration = s.duration >= minDuration;
+      
+      return matchesHHID && matchesPlatform && matchesCategory && matchesDuration;
+    });
+  }, [data, gapThreshold, timeRange, startDate, endDate, selectedHHID, selectedPlatform, selectedCategory, minDuration]);
 
   const ganttTimeRange = useMemo(() => {
     if (timeRange === 'custom' && startDate && endDate) {
@@ -310,18 +406,28 @@ export default function TimelinePage() {
     return undefined;
   }, [timeRange, startDate, endDate]);
 
-  const routerGroups = useMemo(() => {
-    const groups = d3.group(allSessions, d => d.meterId);
+  const totalRouterGroups = useMemo(() => {
+    const sessions = groupEventsIntoSessions(data, gapThreshold);
+    const groups = d3.group(sessions, d => d.meterId);
     return Array.from(groups.entries()).map(([meterId, sessions]) => {
       const devices = new Set(sessions.map(s => s.hostname));
       return {
         meterId,
         deviceCount: devices.size,
-        sessionCount: sessions.length,
-        sessions
+        sessionCount: sessions.length
       };
     });
-  }, [allSessions]);
+  }, [data, gapThreshold]);
+
+  const routerGroups = useMemo(() => {
+    return totalRouterGroups.map(totalInfo => {
+      const sessionsInRange = allSessions.filter(s => s.meterId === totalInfo.meterId);
+      return {
+        ...totalInfo,
+        sessions: sessionsInRange
+      };
+    });
+  }, [allSessions, totalRouterGroups]);
 
   const routerSessions = useMemo(() => {
     if (!selectedRouter) return [];
@@ -359,6 +465,15 @@ export default function TimelinePage() {
       }))
       .sort((a, b) => b.duration - a.duration);
   }, [allSessions]);
+
+  const filterOptions = useMemo(() => {
+    const sessions = groupEventsIntoSessions(data, gapThreshold);
+    return {
+      hhids: ['all', ...Array.from(new Set(sessions.map(s => s.hhid)))],
+      platforms: ['all', ...Array.from(new Set(sessions.map(s => s.platform)))],
+      categories: ['all', ...Array.from(new Set(sessions.map(s => s.category)))]
+    };
+  }, [data, gapThreshold]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -483,48 +598,92 @@ export default function TimelinePage() {
         </div>
       </div>
 
-      {/* Timeline Controls - Near Gantt Chart */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-brand-card/30 border border-brand-border rounded-3xl p-6 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-brand-accent/10 rounded-xl border border-brand-accent/20">
-            <Settings2 className="text-brand-accent h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg tracking-tight">Timeline Filters</h3>
-            <p className="text-[10px] text-brand-muted uppercase tracking-widest font-bold">Adjust time window for charts</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          {/* Booking-style Date Range Picker */}
-          <div className="flex items-center gap-4 bg-brand-bg/50 p-3 rounded-2xl border border-brand-border shadow-inner flex-1 md:flex-none">
-            <div className="flex flex-col min-w-[200px]">
-              <label className="text-[9px] font-black text-brand-accent uppercase mb-1 tracking-tighter">Select Activity Period</label>
-              <DatePicker
-                selectsRange={true}
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(update) => {
-                  const [start, end] = update;
-                  setStartDate(start);
-                  setEndDate(end);
-                  if (start) setTimeRange('custom');
-                }}
-                showTimeSelect
-                timeFormat="HH:mm"
-                timeIntervals={15}
-                timeCaption="time"
-                isClearable={true}
-                placeholderText="Select date & time range"
-                className="bg-transparent text-xs text-brand-text outline-none cursor-pointer hover:text-brand-accent transition-colors w-full"
-                dateFormat="MMM d, yyyy h:mm aa"
-                maxDate={new Date()}
-              />
+      {/* Timeline Controls - Refined UI */}
+      <div className="bg-brand-card/50 border border-brand-border rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-xl relative overflow-hidden space-y-8">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-accent/5 rounded-full -mr-32 -mt-32 blur-3xl" />
+        
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-brand-accent/10 rounded-2xl border border-brand-accent/20">
+                <Settings2 className="text-brand-accent h-5 w-5" />
+              </div>
+              <h3 className="font-bold text-2xl tracking-tight">Timeline Controls</h3>
             </div>
-            
-            <div className="w-px h-8 bg-brand-border" />
-            
-            <div className="flex items-center gap-2">
+            <p className="text-xs text-brand-muted font-medium max-w-md">
+              Select a specific date range or use presets to analyze network activity patterns.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full xl:w-auto">
+            {/* Presets */}
+            <div className="flex items-center gap-1 bg-brand-bg/80 p-1.5 rounded-2xl border border-brand-border shadow-inner">
+              {(['1h', '6h', '24h', 'all'] as const).map(range => (
+                <button
+                  key={range}
+                  onClick={() => {
+                    setTimeRange(range);
+                    setStartDate(null);
+                    setEndDate(null);
+                  }}
+                  className={cn(
+                    "px-5 py-2 rounded-xl text-xs font-bold transition-all uppercase tracking-widest",
+                    timeRange === range && !startDate
+                      ? "bg-brand-accent text-white shadow-lg shadow-brand-accent/30" 
+                      : "text-brand-muted hover:text-brand-text hover:bg-brand-accent/5"
+                  )}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
+
+            <div className="hidden sm:block w-px h-10 bg-brand-border" />
+
+            {/* Booking-style Date Range Picker */}
+            <div className="flex items-center gap-6 bg-brand-bg/80 p-4 px-6 rounded-[2rem] border border-brand-border shadow-inner group hover:border-brand-accent/30 transition-all flex-1 sm:flex-none">
+              <div className="flex flex-col min-w-[280px] relative">
+                <DatePicker
+                  selectsRange={true}
+                  startDate={startDate}
+                  endDate={endDate}
+                  onChange={(update) => {
+                    const [start, end] = update;
+                    setStartDate(start);
+                    setEndDate(end);
+                    if (start) setTimeRange('custom');
+                  }}
+                  showTimeSelect
+                  timeFormat="HH:mm"
+                  timeIntervals={15}
+                  timeCaption="time"
+                  isClearable={true}
+                  placeholderText="Select activity period"
+                  className="bg-transparent text-sm text-brand-text font-bold outline-none cursor-pointer w-full placeholder:text-brand-muted/50"
+                  dateFormat="MMM d, yyyy h:mm aa"
+                  maxDate={new Date()}
+                  popperPlacement="bottom-end"
+                  customInput={
+                    <div className="flex flex-col gap-2 cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest">Start</span>
+                        <div className="bg-brand-card px-3 py-1 rounded-lg border border-brand-border text-[11px] font-mono font-bold text-brand-accent min-w-[140px] text-center">
+                          {startDate ? format(startDate, 'MM/dd/yyyy HH:mm') : '--/--/---- --:--'}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-brand-muted uppercase tracking-widest">End</span>
+                        <div className="bg-brand-card px-3 py-1 rounded-lg border border-brand-border text-[11px] font-mono font-bold text-brand-text min-w-[140px] text-center">
+                          {endDate ? format(endDate, 'MM/dd/yyyy HH:mm') : '--/--/---- --:--'}
+                        </div>
+                      </div>
+                    </div>
+                  }
+                />
+              </div>
+              
+              <div className="w-px h-12 bg-brand-border" />
+              
               <button
                 onClick={() => {
                   setStartDate(startOfDay(new Date()));
@@ -532,15 +691,68 @@ export default function TimelinePage() {
                   setTimeRange('custom');
                 }}
                 className={cn(
-                  "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                  "px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
                   timeRange === 'custom' && startDate && isSameDay(startDate, new Date())
-                    ? "bg-brand-accent text-white shadow-md shadow-brand-accent/20"
-                    : "bg-brand-bg text-brand-muted hover:text-brand-text border border-brand-border"
+                    ? "bg-brand-accent text-white shadow-xl shadow-brand-accent/40 scale-105"
+                    : "bg-brand-card text-brand-muted hover:text-brand-text border border-brand-border hover:shadow-lg"
                 )}
               >
                 Today
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Additional Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-8 border-t border-brand-border/30 relative z-10">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">HHID</label>
+            <select 
+              value={selectedHHID}
+              onChange={(e) => setSelectedHHID(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.hhids.map(h => (
+                <option key={h} value={h}>{h === 'all' ? 'All HHIDs' : h}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Platform</label>
+            <select 
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.platforms.map(p => (
+                <option key={p} value={p}>{p === 'all' ? 'All Platforms' : p}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Category</label>
+            <select 
+              value={selectedCategory || 'all'}
+              onChange={(e) => setSelectedCategory(e.target.value === 'all' ? null : e.target.value)}
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            >
+              {filterOptions.categories.map(c => (
+                <option key={c} value={c}>{c === 'all' ? 'All Categories' : c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-1">Min Duration (s)</label>
+            <input 
+              type="number"
+              value={minDuration}
+              onChange={(e) => setMinDuration(Number(e.target.value))}
+              placeholder="e.g. 60"
+              className="w-full bg-brand-bg border border-brand-border rounded-xl px-4 py-2.5 text-xs font-bold text-brand-text outline-none focus:ring-2 focus:ring-brand-accent transition-all"
+            />
           </div>
         </div>
       </div>

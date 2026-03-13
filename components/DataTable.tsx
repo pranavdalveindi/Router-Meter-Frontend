@@ -27,13 +27,17 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from "lucide-react";
 
 export type RowData = {
-  id?: number;
-  deviceId: string;
-  timestamp: string | number;
-  type: number;
-  details: Record<string, any>;
-  member_code?: string;
-  hhid?: string;
+  router_id: string;          // was deviceId
+  hhid: string | null;
+  timestamp: string | number; // now it's Date from to_timestamp, but API returns ISO string or number
+  type_id: number;            // was type
+  event: string | null;       // connected / active / ...
+  hostname: string | null;
+  platform: string | null;
+  category: string | null;
+  duration_sec: number | null;
+  member: string | null;      // member_code
+  device_type: string | null;
 };
 
 const columns: ColumnDef<RowData>[] = [
@@ -47,9 +51,9 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "event",
     header: "Status",
-    accessorFn: (row) => findValue(row.details, "event") ?? "—",
+    accessorKey: "event",
     cell: ({ getValue }) => {
-      const val = getValue() as string;
+      const val = (getValue() as string) ?? "—";
       return (
         <div className="flex items-center gap-2">
           <div className={cn(
@@ -59,17 +63,20 @@ const columns: ColumnDef<RowData>[] = [
           <span className="capitalize">{val}</span>
         </div>
       );
-    }
+    },
   },
   {
-    accessorKey: "deviceId",
+    accessorKey: "router_id",
     header: ({ column }) => (
-      <button 
+      <button
         className="flex items-center gap-2 hover:text-brand-accent transition-colors"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
-        Device ID <ArrowUpDown size={14} />
+        Router ID <ArrowUpDown size={14} />
       </button>
+    ),
+    cell: ({ getValue }) => (
+      <span className="font-mono text-brand-muted">{getValue() as string}</span>
     ),
   },
   {
@@ -85,60 +92,58 @@ const columns: ColumnDef<RowData>[] = [
   {
     accessorKey: "timestamp",
     header: ({ column }) => (
-      <button 
+      <button
         className="flex items-center gap-2 hover:text-brand-accent transition-colors"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         Timestamp <ArrowUpDown size={14} />
       </button>
     ),
-    cell: ({ row }) => {
-      const ts = row.getValue("timestamp") as string | number;
-      const timestampNum = typeof ts === "string" ? Number(ts) : ts;
-      const date = new Date(timestampNum * 1000);
-      return <div className="text-brand-muted">{isNaN(date.getTime()) ? "—" : date.toLocaleString()}</div>;
+    cell: ({ getValue }) => {
+      const ts = getValue() as string | number;
+      // API likely returns ISO string from to_timestamp
+      const date = new Date(ts);
+      return (
+        <div className="text-brand-muted">
+          {isNaN(date.getTime()) ? "—" : date.toLocaleString()}
+        </div>
+      );
     },
   },
-  {
-    accessorKey: "type",
-    id: "Type",
-    header: "Type",
-    filterFn: (row, id, filterValue) => {
-      if (filterValue === undefined || filterValue === "all") return true;
-      const value = row.getValue(id) as number;
-      return String(value) === filterValue;
-    },
-  },
+  // {
+  //   accessorKey: "type_id",
+  //   id: "Type",
+  //   header: "Type",
+  //   filterFn: (row, id, filterValue) => {
+  //     if (filterValue === undefined || filterValue === "all") return true;
+  //     const value = row.getValue(id) as number;
+  //     return String(value) === filterValue;
+  //   },
+  // },
   {
     id: "member",
     header: "Member",
-    accessorKey: "member_code",
+    accessorKey: "member",
     cell: ({ getValue }) => (
       <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-xs font-semibold">
-        {getValue() as string ?? "—"}
+        {(getValue() as string) ?? "—"}
       </span>
     ),
   },
-  // {
-  //   id: "sourceIP",
-  //   header: "Source IP",
-  //   accessorFn: (row) => findValue(row.details, ["source_ip_v4", "ip", "ip_v4", "source_ip"]) ?? "—",
-  //   cell: ({ getValue }) => <span className="font-mono text-brand-muted">{getValue() as string}</span>
-  // },
   {
     id: "platform",
     header: "Platform",
-    accessorFn: (row) => findValue(row.details, "platform") ?? "—",
+    accessorKey: "platform",
     cell: ({ getValue }) => (
       <span className="px-2 py-0.5 rounded-full bg-brand-accent/10 text-brand-accent text-[10px] font-bold uppercase tracking-wider">
-        {getValue() as string}
+        {(getValue() as string) ?? "—"}
       </span>
-    )
+    ),
   },
   {
     id: "category",
     header: "Category",
-    accessorFn: (row) => findValue(row.details, ["category", "service_category"]) ?? "—",
+    accessorKey: "category",
   },
   {
     id: "deviceType",
@@ -153,19 +158,14 @@ const columns: ColumnDef<RowData>[] = [
   {
     id: "hostname",
     header: "Hostname",
-    accessorFn: (row) => findValue(row.details, "hostname") ?? "—",
+    accessorKey: "hostname",
   },
-  // {
-  //   id: "mac",
-  //   header: "MAC",
-  //   accessorFn: (row) => findValue(row.details, "mac") ?? "—",
-  //   cell: ({ getValue }) => <span className="font-mono text-xs text-brand-muted">{getValue() as string}</span>
-  // },
   {
     id: "connected_duration",
     header: "Duration",
-    accessorFn: (row) => {
-      const sec = findValue(row.details, "connected_duration_sec");
+    accessorKey: "duration_sec",
+    cell: ({ getValue }) => {
+      const sec = getValue() as number | null;
       return sec != null ? `${Number(sec).toLocaleString()} s` : "—";
     },
   },
@@ -210,16 +210,16 @@ export const DataTable = ({ data }: DataTableProps) => {
       <div className="p-6 border-b border-brand-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h3 className="font-semibold text-lg">Recent Events</h3>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted" size={14} />
-            <input 
-              type="text" 
-              placeholder="Filter Device ID..."
-              value={(table.getColumn("deviceId")?.getFilterValue() as string) ?? ""}
-              onChange={(e) => table.getColumn("deviceId")?.setFilterValue(e.target.value)}
-              className="w-full bg-brand-bg border border-brand-border rounded-xl pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-accent/50 transition-all"
-            />
-          </div>
+        <div className="relative flex-1 sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted" size={14} />
+          <input 
+            type="text" 
+            placeholder="Filter Router ID..."
+            value={(table.getColumn("router_id")?.getFilterValue() as string) ?? ""}
+            onChange={(e) => table.getColumn("router_id")?.setFilterValue(e.target.value)}
+            className="w-full bg-brand-bg border border-brand-border rounded-xl pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-accent/50 transition-all"
+          />
+        </div>
           <div className="relative">
             <button 
               onClick={() => {

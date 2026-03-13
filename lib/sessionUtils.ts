@@ -19,96 +19,63 @@ export interface Session {
   events: any[];
 }
 
-export function groupEventsIntoSessions(
-  events: any[],
-  gapThresholdSeconds: number = 120
-): Session[] {
+export const groupEventsIntoSessions = (events: any[], gapThreshold = 120) => {
   if (!events || events.length === 0) return [];
 
-  // Sort events by timestamp
-  const sortedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp);
+  const sorted = [...events].sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
 
-  const sessions: Session[] = [];
-  const activeSessions = new Map<string, Session>();
+  const sessions: any[] = [];
+  let currentSession: any = null;
 
-  sortedEvents.forEach((event) => {
-    const meterId = event.meterId || event.deviceId || "Unknown Router";
-    const hostname = findValue(event.details, "hostname") || findValue(event.details, "device_name") || "Unknown Device";
-    const ip = findValue(event.details, "ip") || "Unknown IP";
-    const mac = findValue(event.details, "mac") || "Unknown MAC";
-    const hhid =
-      findValue(event.details, "hhid") ||
-      event.hhid ||
-      "N/A";
-    const member =
-      findValue(event.details, ["member", "user"]) ||
-      event.member ||
-      event.member_code ||   // ✅ important
-      "Unknown";
+  for (const event of sorted) {
+    const timestamp = Math.floor(new Date(event.timestamp).getTime() / 1000);
 
-    const deviceType =
-      findValue(event.details, ["device_type", "type"]) ||
-      event.deviceType ||
-      event.device_type ||   // ✅ important
-      "Other";
-    const platform = findValue(event.details, "platform") || "Unknown";
-    const category = findValue(event.details, "category") || "Unknown";
-    const subCategory = findValue(event.details, "sub_category") || "Default";
-    const eventType = findValue(event.details, "event");
-
-    // Unique key for Router x Device x Platform x Category x Sub-Category
-    const sessionKey = `${meterId}-${hostname}-${platform}-${category}-${subCategory}`;
-    const timestamp = event.timestamp;
-
-    let currentSession = activeSessions.get(sessionKey);
-
-    // Rule 1 & 2: Check if session exists and if gap is within threshold
-    if (currentSession && (timestamp - currentSession.endTime) <= gapThresholdSeconds) {
-      // Update existing session
-      currentSession.endTime = timestamp;
-      currentSession.eventCount += 1;
-      currentSession.events.push(event);
-      currentSession.duration = currentSession.endTime - currentSession.startTime;
-
-      // Rule 5: Check for disconnect event to end session
-      if (eventType === "disconnected") {
-        sessions.push(currentSession);
-        activeSessions.delete(sessionKey);
-      }
-    } else {
-      // If there was an old session that timed out, push it to completed sessions
-      if (currentSession) {
-        sessions.push(currentSession);
-      }
-
-      // Start new session
-      const newSession: Session = {
-        id: `session-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
-        meterId,
-        hostname,
-        ip,
-        mac,
-        hhid,
-        member,
-        deviceType,
-        platform,
-        category,
-        subCategory,
+    if (!currentSession) {
+      currentSession = {
+        id: `${event.router_id}-${timestamp}`,
+        meterId: event.router_id,
+        hhid: event.hhid ?? "—",
+        member: event.member ?? "—",
+        deviceType: event.device_type ?? "—",
+        hostname: event.hostname ?? "—",
+        platform: event.platform ?? "—",
+        category: event.category ?? "—",
         startTime: timestamp,
         endTime: timestamp,
-        duration: 0,
-        eventCount: 1,
-        events: [event],
+        duration: 0
       };
-      
-      activeSessions.set(sessionKey, newSession);
+      continue;
     }
-  });
 
-  // Push remaining active sessions
-  activeSessions.forEach((session) => {
-    sessions.push(session);
-  });
+    const gap = timestamp - currentSession.endTime;
 
-  return sessions.sort((a, b) => a.startTime - b.startTime);
-}
+    if (
+      gap <= gapThreshold &&
+      currentSession.meterId === event.router_id &&
+      currentSession.hostname === (event.hostname ?? "—")
+    ) {
+      currentSession.endTime = timestamp;
+      currentSession.duration = currentSession.endTime - currentSession.startTime;
+    } else {
+      sessions.push(currentSession);
+
+      currentSession = {
+        id: `${event.router_id}-${timestamp}`,
+        meterId: event.router_id,
+        hhid: event.hhid ?? "—",
+        member: event.member ?? "—",
+        deviceType: event.device_type ?? "—",
+        hostname: event.hostname ?? "—",
+        platform: event.platform ?? "—",
+        category: event.category ?? "—",
+        startTime: timestamp,
+        endTime: timestamp,
+        duration: 0
+      };
+    }
+  }
+
+  if (currentSession) sessions.push(currentSession);
+
+  return sessions;
+};

@@ -6,16 +6,13 @@ import {
   Search,
   Download,
   Filter,
-  Calendar,
-  ChevronLeft,
-  ChevronRight
+  Calendar
 } from 'lucide-react';
 import { useDashboard } from '@/components/DashboardProvider';
 import { groupEventsIntoSessions } from '@/lib/sessionUtils';
 import { cn } from '@/lib/utils';
 import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
-import { startOfDay, endOfDay, isSameDay, format } from 'date-fns';
+import { startOfDay, endOfDay, isSameDay } from 'date-fns';
 
 export default function SessionsPage() {
   const { setTitle, setSubtitle, refreshTrigger } = useDashboard();
@@ -26,11 +23,9 @@ export default function SessionsPage() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
-
+  const pageSize = 20;
+  
   // New filters
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [selectedRouter, setSelectedRouter] = useState<string>('all');
@@ -48,17 +43,12 @@ export default function SessionsPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
+      const response = await fetch("http://localhost:4000/api/router-events/router-events");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData = await response.json();
       setData(fetchedData);
     } catch (err: any) {
       console.warn("API fetch failed, using mock data");
-      // Mock data for demonstration if API fails
-      setData([
-        { id: 1, timestamp: Date.now() / 1000, meterId: "R1", hhid: "H1", member: "User 1", deviceType: "Mobile", hostname: "host1", platform: "Android", category: "Social" },
-        { id: 2, timestamp: (Date.now() - 10000) / 1000, meterId: "R1", hhid: "H1", member: "User 1", deviceType: "Mobile", hostname: "host1", platform: "Android", category: "Social" },
-      ]);
     } finally {
       setLoading(false);
     }
@@ -68,27 +58,37 @@ export default function SessionsPage() {
     fetchData();
   }, [fetchData, refreshTrigger]);
 
-  const allSessionsFiltered = useMemo(() => {
+  const allSessions = useMemo(() => {
     let filteredData = data;
     
     // Time filtering
-    if (timeRange === 'custom' && startDate) {
-      const startTs = startOfDay(startDate).getTime() / 1000;
-      const endTs = endOfDay(endDate || startDate).getTime() / 1000;
-      filteredData = data.filter(d => d.timestamp >= startTs && d.timestamp <= endTs);
+    // Time filtering
+    if (timeRange === 'custom' && startDate && endDate) {
+      const startTs = startDate.getTime() / 1000;
+      const endTs = endDate.getTime() / 1000;
+
+      filteredData = data.filter(d => {
+        const ts = new Date(d.timestamp).getTime() / 1000;
+        return ts >= startTs && ts <= endTs;
+      });
+
     } else if (timeRange !== 'all' && timeRange !== 'custom') {
       const now = Date.now() / 1000;
       const hours = parseInt(timeRange);
-      filteredData = data.filter(d => (now - d.timestamp) <= hours * 3600);
+
+      filteredData = data.filter(d => {
+        const ts = new Date(d.timestamp).getTime() / 1000;
+        return (now - ts) <= hours * 3600;
+      });
     }
     
     const sessions = groupEventsIntoSessions(filteredData, gapThreshold);
     
     // Field filtering
-    const filtered = sessions.filter(s => {
+    return sessions.filter(s => {
       const matchesSearch = !searchTerm || [
         s.hostname, s.meterId, s.platform, s.category, s.hhid, s.member, s.deviceType
-      ].some(val => val?.toLowerCase().includes(searchTerm.toLowerCase()));
+      ].some(val => (val ?? "").toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesMember = selectedMember === 'all' || s.member === selectedMember;
       const matchesRouter = selectedRouter === 'all' || s.meterId === selectedRouter;
@@ -96,26 +96,16 @@ export default function SessionsPage() {
       const matchesHHID = selectedHHID === 'all' || s.hhid === selectedHHID;
       const matchesPlatform = selectedPlatform === 'all' || s.platform === selectedPlatform;
       const matchesCategory = selectedCategory === 'all' || s.category === selectedCategory;
-      const matchesDuration = s.duration >= minDuration && s.duration > 0;
+      const matchesDuration = s.duration >= minDuration;
       
       return matchesSearch && matchesMember && matchesRouter && matchesDeviceType && 
              matchesHHID && matchesPlatform && matchesCategory && matchesDuration;
     });
-
-    // Sort by start time descending
-    return filtered.slice().sort((a, b) => b.startTime - a.startTime);
   }, [data, gapThreshold, timeRange, startDate, endDate, searchTerm, selectedMember, selectedRouter, selectedDeviceType, selectedHHID, selectedPlatform, selectedCategory, minDuration]);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [allSessionsFiltered.length]);
-
-  const totalPages = Math.ceil(allSessionsFiltered.length / itemsPerPage);
-  const currentSessions = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return allSessionsFiltered.slice(startIndex, startIndex + itemsPerPage);
-  }, [allSessionsFiltered, currentPage]);
+  }, [searchTerm, selectedMember, selectedRouter, selectedDeviceType, selectedHHID, selectedPlatform, selectedCategory, minDuration, timeRange, startDate, endDate]);
 
   // Extract unique values for filters
   const filterOptions = useMemo(() => {
@@ -130,37 +120,55 @@ export default function SessionsPage() {
     };
   }, [data, gapThreshold]);
 
+  const paginatedSessions = useMemo(() => {
+    const reversed = [...allSessions].reverse();
+    const startIndex = (currentPage - 1) * pageSize;
+    return reversed.slice(startIndex, startIndex + pageSize);
+  }, [allSessions, currentPage]);
+
+  const totalPages = Math.ceil(allSessions.length / pageSize);
+
   const handleExport = () => {
-    if (allSessionsFiltered.length === 0) return;
-
+    if (allSessions.length === 0) return;
+  
     const headers = [
-      "Router ID", "HHID", "Member", "Device Type", "Hostname", "Platform", "Category", "Start Time", "End Time", "Duration (s)"
+      "Router ID",
+      "HHID",
+      "Member",
+      "Device Type",
+      "Hostname",
+      "Platform",
+      "Category",
+      "Start Time",
+      "End Time",
+      "Duration (s)"
     ];
-
-    const rows = allSessionsFiltered.map(s => [
-      s.meterId,
-      s.hhid,
-      s.member,
-      s.deviceType,
-      s.hostname,
-      s.platform,
-      s.category,
+  
+    const rows = allSessions.map(s => [
+      s.meterId ?? "",
+      s.hhid ?? "",
+      s.member ?? "",
+      s.deviceType ?? "",
+      s.hostname ?? "",
+      s.platform ?? "",
+      s.category ?? "",
       new Date(s.startTime * 1000).toLocaleString(),
       new Date(s.endTime * 1000).toLocaleString(),
-      s.duration
+      s.duration ?? 0
     ]);
-
-    const csvContent = [
+  
+    const csv = [
       headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ...rows.map(r => r.map(v => `"${v}"`).join(","))
     ].join("\n");
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
+  
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `sessions_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
+    link.href = url;
+    link.download = `sessions_${new Date().toISOString().slice(0,10)}.csv`;
+  
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -347,7 +355,7 @@ export default function SessionsPage() {
               Export CSV
             </button>
             <div className="px-4 py-2 bg-brand-accent/10 border border-brand-accent/20 rounded-xl">
-              <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest">{allSessionsFiltered.length} Total Sessions</span>
+              <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest">{allSessions.length} Total Sessions</span>
             </div>
           </div>
         </div>
@@ -368,7 +376,7 @@ export default function SessionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border">
-              {currentSessions.map((session) => (
+              {paginatedSessions.map((session) => (
                 <tr key={session.id} className="hover:bg-brand-accent/5 transition-all group cursor-default">
                   <td className="px-10 py-6">
                     <span className="font-mono text-xs text-brand-muted bg-brand-bg px-2 py-1 rounded border border-brand-border">{session.meterId}</span>
@@ -392,16 +400,10 @@ export default function SessionsPage() {
                     <span className="text-[10px] font-bold text-brand-muted uppercase tracking-tighter">{session.category}</span>
                   </td>
                   <td className="px-10 py-6">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-brand-text/90">{format(new Date(session.startTime * 1000), 'MMM d, yyyy')}</span>
-                      <span className="text-[10px] font-mono text-brand-muted">{format(new Date(session.startTime * 1000), 'hh:mm:ss a')}</span>
-                    </div>
+                    <span className="text-xs font-mono text-brand-text/70">{new Date(session.startTime * 1000).toLocaleString()}</span>
                   </td>
                   <td className="px-10 py-6">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-brand-text/90">{format(new Date(session.endTime * 1000), 'MMM d, yyyy')}</span>
-                      <span className="text-[10px] font-mono text-brand-muted">{format(new Date(session.endTime * 1000), 'hh:mm:ss a')}</span>
-                    </div>
+                    <span className="text-xs font-mono text-brand-text/70">{new Date(session.endTime * 1000).toLocaleString()}</span>
                   </td>
                   <td className="px-10 py-6 text-right">
                     <span className="inline-block px-4 py-1.5 bg-brand-bg border border-brand-border rounded-xl font-mono text-xs font-bold text-brand-accent shadow-sm">
@@ -416,54 +418,33 @@ export default function SessionsPage() {
 
         {/* Pagination Controls */}
         <div className="px-10 py-6 border-t border-brand-border flex items-center justify-between bg-brand-bg/10">
-          <div className="text-xs text-brand-muted font-medium">
-            Showing <span className="text-brand-text font-bold">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-brand-text font-bold">{Math.min(currentPage * itemsPerPage, allSessionsFiltered.length)}</span> of <span className="text-brand-text font-bold">{allSessionsFiltered.length}</span> sessions
-          </div>
-          <div className="flex items-center gap-2">
+          <p className="text-xs text-brand-muted">
+            Showing <span className="text-brand-text font-bold">
+              {Math.min((currentPage - 1) * pageSize + 1, allSessions.length)}-
+              {Math.min(currentPage * pageSize, allSessions.length)}
+            </span> of <span className="text-brand-text font-bold">{allSessions.length}</span> sessions
+          </p>
+          <div className="flex items-center gap-4">
             <button
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="p-2 rounded-xl border border-brand-border hover:bg-brand-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="p-2 rounded-xl border border-brand-border text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 disabled:opacity-30 transition-all"
             >
-              <ChevronLeft size={16} />
+              <Search className="rotate-180" size={16} /> {/* Using Search as a placeholder for back arrow if needed, but I'll use text or other icon */}
+              <span className="px-2">Previous</span>
             </button>
-            
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={cn(
-                      "w-8 h-8 rounded-lg text-xs font-bold transition-all",
-                      currentPage === pageNum 
-                        ? "bg-brand-accent text-white shadow-lg shadow-brand-accent/20" 
-                        : "text-brand-muted hover:text-brand-text hover:bg-brand-bg"
-                    )}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-brand-muted">
+                Page {currentPage} of {totalPages || 1}
+              </span>
             </div>
-
             <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="p-2 rounded-xl border border-brand-border hover:bg-brand-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-2 rounded-xl border border-brand-border text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 disabled:opacity-30 transition-all"
             >
-              <ChevronRight size={16} />
+              <span className="px-2">Next</span>
+              <Search size={16} />
             </button>
           </div>
         </div>
@@ -471,3 +452,4 @@ export default function SessionsPage() {
     </div>
   );
 }
+

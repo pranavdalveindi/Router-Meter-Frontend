@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://api-router-dev.indirex.io/api/router-event");
+      const response = await fetch("http://localhost:4000/api/router-events/router-events");
       if (!response.ok) throw new Error(`Failed: ${response.status}`);
       const fetchedData: RowData[] = await response.json();
       setData(fetchedData);
@@ -81,46 +81,45 @@ export default function DashboardPage() {
   // Calculate stats from real data
   const stats = useMemo(() => {
     const totalEvents = data.length;
-    
+  
     const activeDevices = data.filter(item => {
-      const event = findValue(item.details, "event");
+      const event = item.event;
       return event === "connected" || event === "active";
     }).length;
-
-    const uniqueIPs = new Set(
-      data.map(item => findValue(item.details, ["source_ip_v4", "ip", "ip_v4"]))
-          .filter(Boolean)
-    ).size;
-
+  
+    // If you want unique routers instead of IPs
+    const uniqueRouters = new Set(data.map(item => item.router_id)).size;
+  
     const uniquePlatforms = new Set(
-      data.map(item => findValue(item.details, "platform"))
-          .filter(Boolean)
+      data.map(item => item.platform).filter(Boolean)
     ).size;
-
+  
     return {
       totalEvents,
       activeDevices,
-      uniqueIPs,
-      uniquePlatforms
+      uniqueIPs: uniqueRouters,     // changed meaning – or keep old if you add IP later
+      uniquePlatforms,
     };
   }, [data]);
-
-  // Calculate platform distribution from real data
+  
+  // Platform distribution
   const platformStats = useMemo(() => {
     const counts: Record<string, number> = {};
     data.forEach(item => {
-      const platform = findValue(item.details, "platform") || "Unknown";
+      const platform = item.platform || "Unknown";
       counts[platform] = (counts[platform] || 0) + 1;
     });
-    
+  
     const total = data.length || 1;
     const colors = ['#0ea5e9', '#10b981', '#f43f5e', '#f59e0b', '#6366f1', '#8b5cf6'];
-    
-    return Object.entries(counts).map(([name, count], index) => ({
-      name,
-      count: Math.round((count / total) * 100),
-      color: colors[index % colors.length]
-    })).sort((a, b) => b.count - a.count);
+  
+    return Object.entries(counts)
+      .map(([name, count], index) => ({
+        name,
+        count: Math.round((count / total) * 100),
+        color: colors[index % colors.length]
+      }))
+      .sort((a, b) => b.count - a.count);
   }, [data]);
 
   return (
